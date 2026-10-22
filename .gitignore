@@ -1,0 +1,12 @@
+node_modules
+.next
+.env
+.env*
+*.pem
+dev.db
+*.db
+.DS_Store
+coverage
+out
+build
+*.tsbuildinfo
