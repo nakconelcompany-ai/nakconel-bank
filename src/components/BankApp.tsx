@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiBalance, apiLogin, apiRegister, apiTransfer, type Session } from '@/lib/api';
+import { NG_BANKS, resolveAccountName } from '@/lib/banks';
+import Logo from '@/components/Logo';
 
-type View = 'landing' | 'auth' | 'home' | 'send' | 'receive' | 'topup' | 'history' | 'card' | 'kyc' | 'account' | 'pin' | 'success';
+type View = 'landing' | 'auth' | 'home' | 'send' | 'receive' | 'topup' | 'history' | 'card' | 'kyc' | 'account' | 'pin' | 'success' | 'business';
 type Tx = { id: string; type: 'send' | 'receive' | 'topup'; title: string; amount: number; fee?: number; time: string; status: string };
 
 const FEE = 50;
@@ -34,14 +36,18 @@ export default function BankApp() {
   const [suPass, setSuPass] = useState('');
   const [suPin, setSuPin] = useState('');
   const [sendAmount, setSendAmount] = useState('');
-  const [sendName, setSendName] = useState('');
+  const [sendBank, setSendBank] = useState('');
   const [sendAccount, setSendAccount] = useState('');
+  const [sendResolvedName, setSendResolvedName] = useState('');
+  const [sendResolving, setSendResolving] = useState(false);
   const [sendNote, setSendNote] = useState('');
+  const [sendStep, setSendStep] = useState<'form' | 'confirm'>('form');
   const [topupAmount, setTopupAmount] = useState('');
   const [pinDigits, setPinDigits] = useState('');
   const [pinError, setPinError] = useState('');
   const [pinAction, setPinAction] = useState<'send' | 'topup' | null>(null);
   const [successMsg, setSuccessMsg] = useState({ title: '', msg: '', amount: '' });
+  const [bizInvoices, setBizInvoices] = useState<{ id: string; title: string; amount: number; status: string; link: string }[]>([]);
 
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2800); };
 
@@ -61,6 +67,25 @@ export default function BankApp() {
       }
     } catch { /* */ }
   }, [refreshBalance]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      setSendResolvedName('');
+      if (sendAccount.length !== 10 || !sendBank) return;
+      setSendResolving(true);
+      try {
+        const name = await resolveAccountName(sendAccount, sendBank);
+        if (!cancelled) setSendResolvedName(name);
+      } catch (e: unknown) {
+        if (!cancelled) { setSendResolvedName(''); showToast(e instanceof Error ? e.message : 'Could not resolve account'); }
+      } finally {
+        if (!cancelled) setSendResolving(false);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [sendAccount, sendBank]);
 
   const persistSession = (s: Session) => { setSession(s); localStorage.setItem(SESSION_KEY, JSON.stringify(s)); };
   const logout = () => { localStorage.removeItem(SESSION_KEY); setSession(null); setBalance(0); setTxs([]); setView('landing'); };
@@ -98,11 +123,16 @@ export default function BankApp() {
       if (pinAction === 'send') {
         const amount = parseFloat(sendAmount);
         if (!amount || amount <= 0) throw new Error('Invalid amount');
-        await apiTransfer({ userId: session.id, fromAccountId: session.accountId, amount, beneficiaryName: sendName, beneficiaryAccount: sendAccount, note: sendNote || undefined, pin, idempotencyKey: uid() });
+        const bankName = NG_BANKS.find((b) => b.code === sendBank)?.name || 'Bank';
+        await apiTransfer({
+          userId: session.id, fromAccountId: session.accountId, amount,
+          beneficiaryName: sendResolvedName || 'Beneficiary', beneficiaryAccount: sendAccount,
+          note: sendNote || `${bankName} transfer`, pin, idempotencyKey: uid(),
+        });
         setBalance((b) => Math.max(0, b - (amount + FEE)));
-        setTxs((t) => [{ id: uid(), type: 'send', title: `To ${sendName}`, amount: -amount, fee: FEE, time: new Date().toLocaleString(), status: 'COMPLETED' }, ...t]);
-        setSuccessMsg({ title: 'Sent successfully', msg: `Transfer to ${sendName}`, amount: formatNGN(amount) });
-        setSendAmount(''); setSendName(''); setSendAccount(''); setSendNote('');
+        setTxs((t) => [{ id: uid(), type: 'send', title: `To ${sendResolvedName || sendAccount}`, amount: -amount, fee: FEE, time: new Date().toLocaleString(), status: 'COMPLETED' }, ...t]);
+        setSuccessMsg({ title: 'Transfer successful', msg: `${sendResolvedName} · ${bankName}`, amount: formatNGN(amount) });
+        setSendAmount(''); setSendBank(''); setSendAccount(''); setSendResolvedName(''); setSendNote(''); setSendStep('form');
         await refreshBalance(); setView('success');
       } else if (pinAction === 'topup') {
         const amount = parseFloat(topupAmount);
@@ -122,13 +152,19 @@ export default function BankApp() {
     if (next.length === 4) onPinComplete(next);
   };
 
+  const createBizInvoice = () => {
+    const id = uid().slice(0, 8);
+    setBizInvoices((x) => [{ id, title: `Invoice #${id.toUpperCase()}`, amount: 50000, status: 'UNPAID', link: `https://pay.nakconel.com/i/${id}` }, ...x]);
+    showToast('Invoice created (Phase 2)');
+  };
+
   const shell = (children: React.ReactNode, opts?: { nav?: boolean; pad?: boolean }) => (
-    <div className="app-shell" style={{ paddingBottom: opts?.nav ? 88 : 0 }}>
+    <div className="app-shell" style={{ paddingBottom: opts?.nav ? 92 : 0 }}>
       {toast ? <div className="toast">{toast}</div> : null}
       <div style={{ padding: opts?.pad === false ? 0 : '20px 20px 0' }}>{children}</div>
       {opts?.nav && session ? (
         <nav className="bottom-nav">
-          {([['home', 'Home', '⌂'], ['send', 'Send', '↗'], ['card', 'Card', '▭'], ['history', 'History', '☰'], ['account', 'Me', '●']] as const).map(([v, label, icon]) => (
+          {([['home', 'Home', '⌂'], ['send', 'Send', '↗'], ['card', 'Card', '▭'], ['business', 'Biz', '▣'], ['account', 'Me', '●']] as const).map(([v, label, icon]) => (
             <button key={v} type="button" className={`nav-btn${view === v ? ' active' : ''}`} onClick={() => setView(v)}>
               <span className="nav-icon">{icon}</span>
               <span className="nav-label">{label}</span>
@@ -141,11 +177,11 @@ export default function BankApp() {
 
   if (view === 'landing') {
     return shell(
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 28px 48px', textAlign: 'center' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '48px 28px', textAlign: 'center' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <img src="/logo.png" alt="Nakconel" className="logo-mark" />
-          <h1 style={{ marginTop: 28, fontSize: 36, fontWeight: 600, color: '#f0d78c', letterSpacing: '-0.02em' }}>Nakconel</h1>
-          <p style={{ marginTop: 10, color: 'rgba(245,230,200,0.55)', fontSize: 14, lineHeight: 1.5, maxWidth: 260 }}>The future of African finance</p>
+          <Logo size={110} />
+          <h1 style={{ marginTop: 28, fontSize: 38, fontWeight: 700, background: 'linear-gradient(135deg,#f5e6b8,#d4af37 55%,#b8962e)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.03em' }}>Nakconel</h1>
+          <p style={{ marginTop: 12, color: 'rgba(245,230,200,0.6)', fontSize: 14, maxWidth: 280, lineHeight: 1.55 }}>The future of African finance</p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <button type="button" className="btn-gold" onClick={() => { setAuthTab('signup'); setView('auth'); }}>Get started</button>
@@ -159,10 +195,10 @@ export default function BankApp() {
   if (view === 'auth') {
     return shell(
       <div style={{ paddingTop: 12, paddingBottom: 40 }}>
-        <button type="button" className="btn-ghost" style={{ marginBottom: 28 }} onClick={() => setView('landing')}>← Back</button>
+        <button type="button" className="btn-ghost" style={{ marginBottom: 24 }} onClick={() => setView('landing')}>← Back</button>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <img src="/logo.png" alt="" style={{ width: 56, height: 56, objectFit: 'contain' }} />
-          <h2 style={{ marginTop: 14, fontSize: 24, color: '#f0d78c' }}>Welcome</h2>
+          <Logo size={64} />
+          <h2 style={{ marginTop: 16, fontSize: 26, fontWeight: 600, color: '#f0d78c' }}>Welcome</h2>
           <p style={{ marginTop: 6, color: 'rgba(245,230,200,0.55)', fontSize: 13 }}>Secure banking, built for Africa</p>
         </div>
         <div className="glass" style={{ padding: 6, display: 'flex', gap: 4, marginBottom: 20 }}>
@@ -179,9 +215,9 @@ export default function BankApp() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input className="input" placeholder="Full name" value={suName} onChange={(e) => setSuName(e.target.value)} />
             <input className="input" placeholder="Email" type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} />
-            <input className="input" placeholder="Password (min 6 characters)" type="password" value={suPass} onChange={(e) => setSuPass(e.target.value)} />
+            <input className="input" placeholder="Password (min 6)" type="password" value={suPass} onChange={(e) => setSuPass(e.target.value)} />
             <input className="input" placeholder="4-digit transaction PIN" inputMode="numeric" maxLength={4} value={suPin} onChange={(e) => setSuPin(e.target.value.replace(/\D/g, '').slice(0, 4))} />
-            <button type="button" className="btn-gold" style={{ marginTop: 8 }} disabled={loading} onClick={handleSignup}>{loading ? 'Creating account…' : 'Create account'}</button>
+            <button type="button" className="btn-gold" style={{ marginTop: 8 }} disabled={loading} onClick={handleSignup}>{loading ? 'Creating…' : 'Create account'}</button>
           </div>
         )}
       </div>
@@ -190,10 +226,10 @@ export default function BankApp() {
 
   if (view === 'pin') {
     return shell(
-      <div style={{ textAlign: 'center', paddingTop: 48, paddingBottom: 40 }}>
-        <img src="/logo.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain', marginBottom: 20 }} />
-        <h2 style={{ color: '#f0d78c', fontSize: 22 }}>Enter PIN</h2>
-        <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, marginTop: 8 }}>{pinAction === 'send' ? 'Confirm your transfer' : 'Confirm your top-up'}</p>
+      <div style={{ textAlign: 'center', paddingTop: 40, paddingBottom: 40 }}>
+        <Logo size={44} />
+        <h2 style={{ color: '#f0d78c', fontSize: 22, marginTop: 16 }}>Enter PIN</h2>
+        <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, marginTop: 8 }}>{pinAction === 'send' ? 'Confirm transfer' : 'Confirm top-up'}</p>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 14, margin: '28px 0 12px' }}>
           {[0, 1, 2, 3].map((i) => <div key={i} className={`pin-dot${pinDigits.length > i ? ' on' : ''}`} />)}
         </div>
@@ -212,11 +248,11 @@ export default function BankApp() {
 
   if (view === 'success') {
     return shell(
-      <div style={{ textAlign: 'center', paddingTop: 64, paddingBottom: 40 }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(109, 202, 142, 0.12)', border: '1px solid rgba(109, 202, 142, 0.35)', color: '#6dca8e', fontSize: 28, fontWeight: 700 }}>✓</div>
+      <div style={{ textAlign: 'center', paddingTop: 56, paddingBottom: 40 }}>
+        <div style={{ width: 76, height: 76, borderRadius: '50%', margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(109, 202, 142, 0.14)', border: '1px solid rgba(109, 202, 142, 0.4)', color: '#6dca8e', fontSize: 32, fontWeight: 700 }}>✓</div>
         <h2 style={{ color: '#f0d78c', fontSize: 22 }}>{successMsg.title}</h2>
         <p style={{ color: 'rgba(245,230,200,0.55)', marginTop: 8 }}>{successMsg.msg}</p>
-        <p style={{ fontSize: 30, margin: '24px 0', color: '#f0d78c', fontWeight: 600 }}>{successMsg.amount}</p>
+        <p style={{ fontSize: 32, margin: '24px 0', color: '#f0d78c', fontWeight: 700 }}>{successMsg.amount}</p>
         <button type="button" className="btn-gold" onClick={() => setView('home')}>Done</button>
       </div>
     );
@@ -225,31 +261,34 @@ export default function BankApp() {
   if (view === 'home' && session) {
     return shell(
       <>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
           <div>
-            <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13 }}>Hello</p>
-            <h2 style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>{session.fullName.split(' ')[0]}</h2>
+            <p style={{ color: 'rgba(245,230,200,0.5)', fontSize: 13 }}>Hello</p>
+            <h2 style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{session.fullName.split(' ')[0]}</h2>
           </div>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #f0d78c, #d4af37)', color: '#120606', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{session.fullName.charAt(0).toUpperCase()}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Logo size={36} />
+            <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #f0d78c, #d4af37)', color: '#120606', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{session.fullName.charAt(0).toUpperCase()}</div>
+          </div>
         </div>
         <div className="balance-card" style={{ marginBottom: 22 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13 }}>Available balance</span>
             <button type="button" className="btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setHideBal((h) => !h)}>{hideBal ? 'Show' : 'Hide'}</button>
           </div>
-          <p style={{ fontSize: 34, fontWeight: 600, color: '#f0d78c', marginTop: 12, letterSpacing: '-0.02em' }}>{hideBal ? '••••••••' : formatNGN(balance)}</p>
-          <p style={{ marginTop: 6, fontSize: 12, color: 'rgba(245,230,200,0.55)' }}>NGN wallet · Protected</p>
+          <p style={{ fontSize: 36, fontWeight: 700, color: '#f0d78c', marginTop: 14, letterSpacing: '-0.03em' }}>{hideBal ? '••••••••' : formatNGN(balance)}</p>
+          <p style={{ marginTop: 8, fontSize: 12, color: 'rgba(245,230,200,0.45)' }}>NGN · Protected by Nakconel</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 28 }}>
-          {([['send', 'Send', '↗'], ['receive', 'Receive', '↙'], ['topup', 'Top up', '+'], ['card', 'Card', '▭']] as const).map(([v, label, icon]) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 26 }}>
+          {([['send', 'Send', '↗'], ['receive', 'Receive', '↙'], ['topup', 'Top up', '+'], ['history', 'History', '☰']] as const).map(([v, label, icon]) => (
             <button key={v} type="button" className="qa" onClick={() => setView(v)}><span className="qa-icon">{icon}</span>{label}</button>
           ))}
         </div>
-        <h3 style={{ fontSize: 14, color: 'rgba(245,230,200,0.55)', fontWeight: 500, marginBottom: 8 }}>Recent activity</h3>
+        <h3 style={{ fontSize: 13, color: 'rgba(245,230,200,0.5)', fontWeight: 500, marginBottom: 10, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Recent</h3>
         <div className="glass" style={{ padding: '4px 16px', marginBottom: 16 }}>
-          {txs.length === 0 ? <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No transactions yet</p> : txs.slice(0, 4).map((t) => (
+          {txs.length === 0 ? <p style={{ color: 'rgba(245,230,200,0.45)', fontSize: 13, padding: '22px 0', textAlign: 'center' }}>No transactions yet</p> : txs.slice(0, 4).map((t) => (
             <div key={t.id} className="tx-row">
-              <div><div style={{ fontWeight: 500, fontSize: 14 }}>{t.title}</div><div style={{ fontSize: 11, color: 'rgba(245,230,200,0.45)', marginTop: 2 }}>{t.time}</div></div>
+              <div><div style={{ fontWeight: 500, fontSize: 14 }}>{t.title}</div><div style={{ fontSize: 11, color: 'rgba(245,230,200,0.4)', marginTop: 2 }}>{t.time}</div></div>
               <div style={{ fontWeight: 600, fontSize: 14, color: t.amount >= 0 ? '#6dca8e' : '#f0d78c' }}>{t.amount >= 0 ? '+' : ''}{formatNGN(t.amount)}</div>
             </div>
           ))}
@@ -261,18 +300,52 @@ export default function BankApp() {
 
   if (view === 'send') {
     const amt = parseFloat(sendAmount || '0') || 0;
+    const bankName = NG_BANKS.find((b) => b.code === sendBank)?.name || '';
+    if (sendStep === 'confirm') {
+      return shell(
+        <div style={{ paddingBottom: 28 }}>
+          <button type="button" className="btn-ghost" style={{ marginBottom: 16 }} onClick={() => setSendStep('form')}>← Edit</button>
+          <h2 className="page-title">Confirm transfer</h2>
+          <p className="page-sub">Review details before entering PIN</p>
+          <div className="glass" style={{ padding: 20 }}>
+            <p style={{ fontSize: 12, color: 'rgba(245,230,200,0.45)' }}>You send</p>
+            <p style={{ fontSize: 28, fontWeight: 700, color: '#f0d78c', marginTop: 4 }}>{formatNGN(amt)}</p>
+            <div style={{ height: 1, background: 'rgba(212,175,55,0.12)', margin: '16px 0' }} />
+            <p style={{ fontSize: 12, color: 'rgba(245,230,200,0.45)' }}>To</p>
+            <p style={{ fontWeight: 600, marginTop: 4, fontSize: 16 }}>{sendResolvedName}</p>
+            <p style={{ fontSize: 13, color: 'rgba(245,230,200,0.55)', marginTop: 4 }}>{bankName} · {sendAccount}</p>
+            <div style={{ height: 1, background: 'rgba(212,175,55,0.12)', margin: '16px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: 'rgba(245,230,200,0.5)' }}>Fee</span><span>{formatNGN(FEE)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginTop: 10, fontWeight: 600 }}><span>Total debit</span><span style={{ color: '#f0d78c' }}>{formatNGN(amt + FEE)}</span></div>
+          </div>
+          <button type="button" className="btn-gold" style={{ marginTop: 20 }} onClick={() => openPin('send')}>Enter PIN to send</button>
+        </div>,
+        { nav: true }
+      );
+    }
     return shell(
-      <div style={{ paddingBottom: 24 }}>
+      <div style={{ paddingBottom: 28 }}>
         <h2 className="page-title">Send money</h2>
-        <p className="page-sub">Transfer fee ₦{FEE}</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <input className="input" placeholder="Amount (NGN)" inputMode="decimal" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} />
-          <input className="input" placeholder="Beneficiary name" value={sendName} onChange={(e) => setSendName(e.target.value)} />
-          <input className="input" placeholder="Account number" inputMode="numeric" value={sendAccount} onChange={(e) => setSendAccount(e.target.value)} />
-          <input className="input" placeholder="Note (optional)" value={sendNote} onChange={(e) => setSendNote(e.target.value)} />
-          {amt > 0 ? <div className="glass" style={{ padding: 14, fontSize: 13, color: 'rgba(245,230,200,0.55)' }}>You will debit <span style={{ color: '#f0d78c', fontWeight: 600 }}>{formatNGN(amt + FEE)}</span></div> : null}
-          <button type="button" className="btn-gold" style={{ marginTop: 8 }} onClick={() => { if (!sendAmount || !sendName || sendAccount.length < 10) { showToast('Enter amount, name, and account'); return; } openPin('send'); }}>Continue</button>
+        <p className="page-sub">Fee ₦{FEE} · Instant Naira transfer</p>
+        <label style={{ display: 'block', fontSize: 12, color: 'rgba(245,230,200,0.5)', marginBottom: 8 }}>Amount</label>
+        <div className="glass" style={{ padding: '4px 4px 4px 16px', display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+          <span style={{ color: '#f0d78c', fontWeight: 600, fontSize: 18 }}>₦</span>
+          <input className="input" style={{ border: 'none', background: 'transparent', fontSize: 22, fontWeight: 600, padding: '14px 12px' }} placeholder="0.00" inputMode="decimal" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} />
         </div>
+        <label style={{ display: 'block', fontSize: 12, color: 'rgba(245,230,200,0.5)', marginBottom: 8 }}>Bank</label>
+        <select className="input" value={sendBank} onChange={(e) => setSendBank(e.target.value)} style={{ marginBottom: 16, cursor: 'pointer' }}>
+          <option value="">Select bank</option>
+          {NG_BANKS.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+        </select>
+        <label style={{ display: 'block', fontSize: 12, color: 'rgba(245,230,200,0.5)', marginBottom: 8 }}>Account number</label>
+        <input className="input" placeholder="10-digit account number" inputMode="numeric" maxLength={10} value={sendAccount} onChange={(e) => setSendAccount(e.target.value.replace(/\D/g, '').slice(0, 10))} style={{ marginBottom: 12 }} />
+        <div className="glass" style={{ padding: '14px 16px', marginBottom: 16, minHeight: 52, display: 'flex', alignItems: 'center', borderColor: sendResolvedName ? 'rgba(109,202,142,0.35)' : undefined }}>
+          {sendResolving ? <span style={{ color: 'rgba(245,230,200,0.5)', fontSize: 13 }}>Looking up account…</span>
+            : sendResolvedName ? <div><p style={{ fontSize: 11, color: 'rgba(245,230,200,0.45)' }}>Account name</p><p style={{ fontWeight: 600, color: '#6dca8e', marginTop: 2 }}>{sendResolvedName}</p></div>
+            : <span style={{ color: 'rgba(245,230,200,0.4)', fontSize: 13 }}>Account name appears after bank + number</span>}
+        </div>
+        <input className="input" placeholder="Narration (optional)" value={sendNote} onChange={(e) => setSendNote(e.target.value)} style={{ marginBottom: 16 }} />
+        <button type="button" className="btn-gold" disabled={!amt || !sendBank || sendAccount.length !== 10 || !sendResolvedName || sendResolving} onClick={() => setSendStep('confirm')}>Continue</button>
       </div>,
       { nav: true }
     );
@@ -281,15 +354,16 @@ export default function BankApp() {
   if (view === 'receive') {
     const acct = session?.accountId || '—';
     return shell(
-      <div style={{ textAlign: 'center', paddingBottom: 24 }}>
-        <h2 className="page-title" style={{ textAlign: 'center' }}>Receive</h2>
-        <div className="glass" style={{ padding: 24, margin: '24px 0', textAlign: 'left' }}>
-          <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 12 }}>Account ID</p>
+      <div style={{ textAlign: 'center', paddingBottom: 28 }}>
+        <Logo size={48} />
+        <h2 className="page-title" style={{ textAlign: 'center', marginTop: 12 }}>Receive money</h2>
+        <div className="glass" style={{ padding: 22, textAlign: 'left', marginTop: 16 }}>
+          <p style={{ fontSize: 12, color: 'rgba(245,230,200,0.45)' }}>Account ID</p>
           <p style={{ fontWeight: 600, marginTop: 6, wordBreak: 'break-all', fontSize: 13 }}>{acct}</p>
-          <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 12, marginTop: 16 }}>Name</p>
+          <p style={{ fontSize: 12, color: 'rgba(245,230,200,0.45)', marginTop: 16 }}>Name</p>
           <p style={{ fontWeight: 600, marginTop: 6 }}>{session?.fullName}</p>
         </div>
-        <button type="button" className="btn-gold" onClick={() => { navigator.clipboard?.writeText(acct); showToast('Account ID copied'); }}>Copy account ID</button>
+        <button type="button" className="btn-gold" style={{ marginTop: 18 }} onClick={() => { navigator.clipboard?.writeText(acct); showToast('Account ID copied'); }}>Copy account ID</button>
       </div>,
       { nav: true }
     );
@@ -297,11 +371,11 @@ export default function BankApp() {
 
   if (view === 'topup') {
     return shell(
-      <div style={{ paddingBottom: 24 }}>
+      <div style={{ paddingBottom: 28 }}>
         <h2 className="page-title">Top up</h2>
         <p className="page-sub">Minimum ₦100</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-          {[1000, 2000, 5000, 10000].map((a) => (
+          {[1000, 2000, 5000, 10000, 20000].map((a) => (
             <button key={a} type="button" className="btn-ghost" style={{ borderRadius: 999, padding: '10px 14px' }} onClick={() => setTopupAmount(String(a))}>₦{a.toLocaleString()}</button>
           ))}
         </div>
@@ -314,12 +388,12 @@ export default function BankApp() {
 
   if (view === 'history') {
     return shell(
-      <div style={{ paddingBottom: 24 }}>
+      <div style={{ paddingBottom: 28 }}>
         <h2 className="page-title">Transactions</h2>
         <div className="glass" style={{ padding: '4px 16px', marginTop: 12 }}>
-          {txs.length === 0 ? <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, padding: '28px 0', textAlign: 'center' }}>No transactions yet</p> : txs.map((t) => (
+          {txs.length === 0 ? <p style={{ color: 'rgba(245,230,200,0.45)', fontSize: 13, padding: '28px 0', textAlign: 'center' }}>No transactions yet</p> : txs.map((t) => (
             <div key={t.id} className="tx-row">
-              <div><div style={{ fontWeight: 500 }}>{t.title}</div><div style={{ fontSize: 11, color: 'rgba(245,230,200,0.45)', marginTop: 2 }}>{t.time} · {t.status}</div></div>
+              <div><div style={{ fontWeight: 500 }}>{t.title}</div><div style={{ fontSize: 11, color: 'rgba(245,230,200,0.4)', marginTop: 2 }}>{t.time} · {t.status}</div></div>
               <div style={{ fontWeight: 600, color: t.amount >= 0 ? '#6dca8e' : '#f0d78c' }}>{t.amount >= 0 ? '+' : ''}{formatNGN(t.amount)}</div>
             </div>
           ))}
@@ -331,16 +405,16 @@ export default function BankApp() {
 
   if (view === 'card') {
     return shell(
-      <div style={{ paddingBottom: 24 }}>
+      <div style={{ paddingBottom: 28 }}>
         <h2 className="page-title">Virtual card</h2>
         <div className="card-face" style={{ opacity: cardFrozen ? 0.55 : 1, marginTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <img src="/logo.png" alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
-            <span style={{ fontSize: 11, color: '#f0d78c', letterSpacing: '0.08em' }}>NAKCONEL</span>
+            <Logo size={36} />
+            <span style={{ fontSize: 11, color: '#f0d78c', letterSpacing: '0.1em', fontWeight: 600 }}>NAKCONEL</span>
           </div>
-          <p style={{ fontFamily: 'ui-monospace, monospace', fontSize: 18, letterSpacing: 2, margin: '36px 0 20px' }}>{cardRevealed ? '4532  ••••  ••••  8841' : '••••  ••••  ••••  ••••'}</p>
+          <p style={{ fontFamily: 'ui-monospace, monospace', fontSize: 18, letterSpacing: 3, margin: '40px 0 22px' }}>{cardRevealed ? '4532  ••••  ••••  8841' : '••••  ••••  ••••  ••••'}</p>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(245,230,200,0.55)' }}>
-            <span style={{ color: '#f5e6c8' }}>{session?.fullName?.toUpperCase() || 'CARD HOLDER'}</span>
+            <span style={{ color: '#f5e6c8', fontWeight: 500 }}>{session?.fullName?.toUpperCase() || 'CARD HOLDER'}</span>
             <span>{cardFrozen ? 'FROZEN' : 'ACTIVE'}</span>
           </div>
         </div>
@@ -353,16 +427,51 @@ export default function BankApp() {
     );
   }
 
+  if (view === 'business') {
+    return shell(
+      <div style={{ paddingBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <Logo size={40} />
+          <div>
+            <h2 className="page-title" style={{ marginBottom: 0 }}>Business</h2>
+            <p style={{ fontSize: 12, color: '#d4af37', marginTop: 2 }}>Phase 2 · Early access</p>
+          </div>
+        </div>
+        <p className="page-sub">Invoices, payment links & collections</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+          {[{ t: 'Invoices', d: 'Bill customers' }, { t: 'Payment links', d: 'Share & get paid' }, { t: 'Collections', d: 'Track inflows' }, { t: 'Team pay', d: 'Payroll soon' }].map((x) => (
+            <div key={x.t} className="glass" style={{ padding: 14 }}>
+              <p style={{ fontWeight: 600, fontSize: 14 }}>{x.t}</p>
+              <p style={{ fontSize: 11, color: 'rgba(245,230,200,0.45)', marginTop: 4 }}>{x.d}</p>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="btn-gold" onClick={createBizInvoice}>Create sample invoice</button>
+        {bizInvoices.length > 0 ? (
+          <div className="glass" style={{ padding: '8px 16px', marginTop: 16 }}>
+            {bizInvoices.map((inv) => (
+              <div key={inv.id} className="tx-row">
+                <div><div style={{ fontWeight: 500 }}>{inv.title}</div><div style={{ fontSize: 11, color: 'rgba(245,230,200,0.4)', marginTop: 2 }}>{inv.status}</div></div>
+                <div style={{ fontWeight: 600, color: '#f0d78c' }}>{formatNGN(inv.amount)}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>,
+      { nav: true }
+    );
+  }
+
   if (view === 'kyc') {
     return shell(
-      <div style={{ paddingBottom: 24 }}>
+      <div style={{ paddingBottom: 28 }}>
         <h2 className="page-title">Verification</h2>
-        <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, marginTop: 8, marginBottom: 18 }}>Status: <strong style={{ color: '#f0d78c' }}>{session?.kycStatus || 'NONE'}</strong></p>
+        <p className="page-sub">Status: <strong style={{ color: '#f0d78c' }}>{session?.kycStatus || 'NONE'}</strong></p>
         <div className="glass" style={{ padding: 18 }}>
-          <p style={{ fontWeight: 600, marginBottom: 10 }}>What you need</p>
-          <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, lineHeight: 1.7 }}>1. Personal details<br />2. BVN<br />3. ID + selfie</p>
+          <p style={{ fontWeight: 600, marginBottom: 10 }}>Required</p>
+          <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, lineHeight: 1.8 }}>1. Personal details<br />2. BVN<br />3. ID + selfie</p>
         </div>
-        <button type="button" className="btn-gold" style={{ marginTop: 18 }} onClick={() => showToast('KYC provider integration in Phase 2')}>Start verification</button>
+        <button type="button" className="btn-gold" style={{ marginTop: 18 }} onClick={() => showToast('KYC providers wire in Phase 2')}>Start verification</button>
         <button type="button" className="btn-outline" style={{ marginTop: 10 }} onClick={() => setView('home')}>Back to home</button>
       </div>,
       { nav: true }
@@ -371,23 +480,25 @@ export default function BankApp() {
 
   if (view === 'account') {
     return shell(
-      <div style={{ paddingBottom: 24 }}>
+      <div style={{ paddingBottom: 28 }}>
         <h2 className="page-title">Account</h2>
-        <div style={{ textAlign: 'center', marginBottom: 20, marginTop: 12 }}>
-          <img src="/logo.png" alt="" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 12 }} />
-          <p style={{ fontWeight: 600, fontSize: 18 }}>{session?.fullName}</p>
+        <div style={{ textAlign: 'center', margin: '16px 0 20px' }}>
+          <Logo size={72} />
+          <p style={{ fontWeight: 700, fontSize: 18, marginTop: 12 }}>{session?.fullName}</p>
           <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 13, marginTop: 4 }}>{session?.email}</p>
         </div>
         <div className="glass" style={{ padding: 16 }}>
-          <p style={{ color: 'rgba(245,230,200,0.55)', fontSize: 12 }}>Account ID</p>
+          <p style={{ color: 'rgba(245,230,200,0.45)', fontSize: 12 }}>Account ID</p>
           <p style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 6 }}>{session?.accountId}</p>
         </div>
-        <button type="button" className="btn-outline" style={{ marginTop: 20 }} onClick={() => setView('kyc')}>KYC verification</button>
-        <button type="button" className="btn-ghost" style={{ width: '100%', marginTop: 12, padding: 14, borderRadius: 14, color: '#e07070', borderColor: 'rgba(224,112,112,0.3)' }} onClick={logout}>Log out</button>
+        <button type="button" className="btn-outline" style={{ marginTop: 16 }} onClick={() => setView('kyc')}>KYC verification</button>
+        <button type="button" className="btn-outline" style={{ marginTop: 10 }} onClick={() => setView('business')}>Business (Phase 2)</button>
+        <button type="button" className="btn-outline" style={{ marginTop: 10 }} onClick={() => setView('history')}>Transaction history</button>
+        <button type="button" className="btn-ghost" style={{ width: '100%', marginTop: 14, padding: 14, borderRadius: 14, color: '#e07070', borderColor: 'rgba(224,112,112,0.3)' }} onClick={logout}>Log out</button>
       </div>,
       { nav: true }
     );
   }
 
-  return shell(<div style={{ padding: 48, textAlign: 'center', color: 'rgba(245,230,200,0.55)' }}>Loading…</div>);
+  return shell(<div style={{ padding: 48, textAlign: 'center', color: 'rgba(245,230,200,0.5)' }}>Loading…</div>);
 }
