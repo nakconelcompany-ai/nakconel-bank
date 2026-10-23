@@ -4,13 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "test": "vitest run",
     "db:push": "prisma db push",
-    "db:generate": "prisma generate",
-    "docker:up": "docker compose up -d db"
+    "db:generate": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",
