@@ -1,10 +1,5 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-
-/**
- * Immutable double-entry ledger.
- * - Never update or delete posted entries
- * - Corrections = reverse journal
- */
 
 export async function getAccountBalanceKobo(accountId: string): Promise<number> {
   const credits = await prisma.ledgerEntry.aggregate({
@@ -45,7 +40,7 @@ export async function postJournal(input: {
             currency: 'NGN',
             reference: e.reference,
             status: 'POSTED',
-            metadata: e.metadata ?? {},
+            metadata: (e.metadata ?? {}) as Prisma.InputJsonValue,
           })),
         },
       },

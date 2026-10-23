@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 
 export async function writeAudit(params: {
@@ -15,7 +16,7 @@ export async function writeAudit(params: {
         action: params.action,
         resource: params.resource,
         resourceId: params.resourceId,
-        meta: params.meta ?? {},
+        meta: (params.meta ?? {}) as Prisma.InputJsonValue,
         ip: params.ip,
       },
     });

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './prisma';
 
 const TTL_HOURS = 24;
@@ -21,8 +22,15 @@ export async function withIdempotency<T>(
 
   await prisma.idempotencyRecord.upsert({
     where: { key },
-    create: { key, response: data as object, expiresAt },
-    update: { response: data as object, expiresAt },
+    create: {
+      key,
+      response: data as Prisma.InputJsonValue,
+      expiresAt,
+    },
+    update: {
+      response: data as Prisma.InputJsonValue,
+      expiresAt,
+    },
   });
 
   return { data, replayed: false };
