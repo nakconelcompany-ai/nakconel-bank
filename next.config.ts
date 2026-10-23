@@ -1,7 +1,5 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
-const nextConfig: NextConfig = {
-  // Keep production config minimal for reliable Vercel builds
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

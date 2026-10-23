@@ -1,8 +1,74 @@
-html, body {
-  margin: 0;
-  padding: 0;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --burgundy-950: #0c0404;
+  --burgundy-900: #160808;
+  --burgundy-850: #1f0c0c;
+  --burgundy-800: #2a1010;
+  --burgundy-700: #3d1818;
+  --gold-300: #f5e6b8;
+  --gold-400: #e8c96a;
+  --gold-500: #d4af37;
+  --gold-600: #b8962e;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; min-height: 100%;
+  font-family: Inter, system-ui, sans-serif;
+  background: var(--burgundy-950);
+  color: var(--gold-300);
+}
+.glass {
+  background: rgba(42, 16, 16, 0.6);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(212, 175, 55, 0.1);
+}
+.glass-strong {
+  background: rgba(22, 8, 8, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(212, 175, 55, 0.14);
+}
+.btn-gold {
+  background: linear-gradient(135deg, #f5e6b8 0%, #d4af37 50%, #b8962e 100%);
+  color: #160808; font-weight: 600; border: none; cursor: pointer;
+}
+.btn-gold:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(212, 175, 55, 0.25); }
+.btn-gold:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost {
+  background: transparent; border: 1px solid rgba(212, 175, 55, 0.25);
+  color: var(--gold-400); cursor: pointer;
+}
+.input-field {
+  width: 100%; padding: 14px 16px; border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  background: rgba(12, 4, 4, 0.6); color: var(--gold-300);
+  font-size: 15px; outline: none;
+}
+.input-field:focus { border-color: rgba(212, 175, 55, 0.45); }
+.input-field::placeholder { color: rgba(245, 230, 184, 0.35); }
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: none; border: none; color: rgba(245, 230, 184, 0.45);
+  font-size: 11px; cursor: pointer; padding: 8px 12px;
+}
+.nav-item.active { color: var(--gold-500); }
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 100; padding: 12px 20px; border-radius: 12px;
+  background: rgba(22, 8, 8, 0.95); border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--gold-300); font-size: 14px; max-width: 90vw;
+}
+.pin-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid rgba(212, 175, 55, 0.4);
+}
+.pin-dot.filled { background: var(--gold-500); border-color: var(--gold-500); }
+.card-visual {
+  background: linear-gradient(135deg, #3d1818 0%, #1f0c0c 50%, #2a1010 100%);
+  border: 1px solid rgba(212, 175, 55, 0.25); border-radius: 16px;
+  padding: 24px; position: relative; overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
