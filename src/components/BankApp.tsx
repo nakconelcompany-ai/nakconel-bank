@@ -6,6 +6,7 @@ import { NG_BANKS, resolveAccountName } from '@/lib/banks';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
 import SignupFlow from '@/components/SignupFlow';
+import InternationalView from '@/components/InternationalView';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconCard,
   IconHistory, IconUser, IconBiz, IconEye, IconEyeOff,
@@ -14,7 +15,7 @@ import {
 
 type View =
   | 'landing' | 'auth' | 'home' | 'send' | 'receive' | 'topup'
-  | 'history' | 'card' | 'kyc' | 'account' | 'pin' | 'success' | 'business';
+  | 'history' | 'card' | 'kyc' | 'account' | 'pin' | 'success' | 'business' | 'international';
 
 type Tx = {
   id: string;
@@ -241,7 +242,7 @@ export default function BankApp() {
             [
               ['home', 'Home', IconHome],
               ['send', 'Send', IconSend],
-              ['card', 'Card', IconCard],
+              ['international', 'World', IconShield],
               ['business', 'Biz', IconBiz],
               ['account', 'Me', IconUser],
             ] as const
@@ -365,6 +366,10 @@ export default function BankApp() {
             </button>
           ))}
         </div>
+        <button type="button" className="glass" style={{ width: '100%', padding: 16, marginBottom: 10, textAlign: 'left', cursor: 'pointer', border: '1px solid rgba(212,175,55,0.25)' }} onClick={() => setView('international')}>
+          <p style={{ fontWeight: 700, color: '#f0d78c' }}>Send abroad</p>
+          <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)', marginTop: 4 }}>Africa · UK · US · GCC · Europe</p>
+        </button>
         <button type="button" className="glass" style={{ width: '100%', padding: 16, marginBottom: 16, textAlign: 'left', cursor: 'pointer', border: '1px solid rgba(212,175,55,0.25)' }} onClick={() => setView('business')}>
           <p style={{ fontWeight: 700, color: '#f0d78c' }}>Nakconel Business</p>
           <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)', marginTop: 4 }}>Invoices · Links · Expenses · Team</p>
@@ -379,6 +384,18 @@ export default function BankApp() {
           ))}
         </div>
       </>,
+      { nav: true }
+    );
+  }
+
+  if (view === 'international' && session) {
+    return shell(
+      <InternationalView
+        userId={session.id}
+        accountId={session.accountId || ''}
+        onToast={showToast}
+        onBalanceRefresh={() => refreshBalance()}
+      />,
       { nav: true }
     );
   }
@@ -435,9 +452,7 @@ export default function BankApp() {
         <button type="button" className="input" onClick={() => { setBankSearch(''); setBankPickerOpen(true); }} style={{ marginBottom: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%' }}>
           {sendBank ? (
             <>
-              <span style={{ width: 36, height: 36, borderRadius: 10, background: NG_BANKS.find((b) => b.code === sendBank)?.color || '#d4af37', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                {NG_BANKS.find((b) => b.code === sendBank)?.short || 'BK'}
-              </span>
+              <span style={{ width: 36, height: 36, borderRadius: 10, background: NG_BANKS.find((b) => b.code === sendBank)?.color || '#d4af37', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{NG_BANKS.find((b) => b.code === sendBank)?.short || 'BK'}</span>
               <span style={{ fontWeight: 600, color: '#f5e6c8' }}>{bankName}</span>
             </>
           ) : (
@@ -571,7 +586,8 @@ export default function BankApp() {
           <p style={{ color: 'rgba(245,230,200,0.45)', fontSize: 12 }}>Account ID</p>
           <p style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 6 }}>{session?.accountId}</p>
         </div>
-        <button type="button" className="btn-outline" style={{ marginTop: 16 }} onClick={() => setView('business')}>Business</button>
+        <button type="button" className="btn-outline" style={{ marginTop: 16 }} onClick={() => setView('international')}>Send abroad</button>
+        <button type="button" className="btn-outline" style={{ marginTop: 10 }} onClick={() => setView('business')}>Business</button>
         <button type="button" className="btn-outline" style={{ marginTop: 10 }} onClick={() => setView('history')}>Transaction history</button>
         <button type="button" className="btn-ghost" style={{ width: '100%', marginTop: 14, padding: 14, borderRadius: 14, color: '#e07070', borderColor: 'rgba(224,112,112,0.3)' }} onClick={logout}>Log out</button>
       </div>,
