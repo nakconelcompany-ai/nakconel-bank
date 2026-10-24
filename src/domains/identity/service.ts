@@ -8,6 +8,7 @@ export async function registerUser(input: {
   fullName: string;
   password: string;
   pin: string;
+  phone?: string;
 }) {
   if (!/^\d{4}$/.test(input.pin)) throw new Error('PIN must be 4 digits');
   if (input.password.length < 6) throw new Error('Password too short');
@@ -22,8 +23,10 @@ export async function registerUser(input: {
     data: {
       email: input.email,
       fullName: input.fullName,
+      phone: input.phone || null,
       passwordHash,
       pinHash,
+      kycStatus: input.phone ? 'PENDING' : 'NONE',
       accounts: {
         create: { currency: 'NGN', status: 'ACTIVE' },
       },
@@ -86,6 +89,7 @@ export async function changePin(userId: string, oldPin: string, newPin: string) 
   await writeAudit({ userId, action: 'PIN_CHANGED', resource: 'user', resourceId: userId });
 }
 
+/** Credit wallet (top-up) via ledger */
 export async function topUpAccount(input: {
   userId: string;
   accountId: string;
@@ -94,7 +98,7 @@ export async function topUpAccount(input: {
   pinVerified: boolean;
 }) {
   if (!input.pinVerified) throw new Error('PIN required');
-  if (input.amountKobo < 10000) throw new Error('Minimum top-up is \u20a6100');
+  if (input.amountKobo < 10000) throw new Error('Minimum top-up is ₦100');
 
   const account = await prisma.account.findFirst({
     where: { id: input.accountId, userId: input.userId },
