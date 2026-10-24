@@ -75,8 +75,6 @@ export async function apiTransfer(input: {
   return json.data;
 }
 
-// ── Phase 2 Business APIs ────────────────────────────────────────────────────
-
 export async function apiBizProfile(userId: string, businessName?: string) {
   const res = await fetch('/api/v1/business/profile', {
     method: 'POST',
@@ -256,4 +254,115 @@ export async function apiPayTeamMember(body: {
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'Team pay failed');
   return json.data;
+}
+
+// Phase 3 International
+
+export type IntlCorridor = {
+  id: string;
+  label: string;
+  subtitle: string;
+  flag: string;
+  feePct: number;
+  feeMinNgn: number;
+  settlementDays: string;
+  countries: Array<{ code: string; name: string; currency: string; currencyName: string }>;
+};
+
+export type IntlQuote = {
+  corridorId: string;
+  corridorLabel: string;
+  countryCode: string;
+  countryName: string;
+  currency: string;
+  currencyName: string;
+  amountNgn: number;
+  feeNgn: number;
+  totalDebitNgn: number;
+  fxRate: number;
+  amountForeign: number;
+  settlementDays: string;
+  settlementNote: string;
+};
+
+export async function apiIntlCorridors() {
+  const res = await fetch(`${base}/api/v1/international/quote`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Corridors failed');
+  return json.data as IntlCorridor[];
+}
+
+export async function apiIntlQuote(body: {
+  corridorId: string;
+  countryCode: string;
+  amountNgn: number;
+}) {
+  const res = await fetch(`${base}/api/v1/international/quote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Quote failed');
+  return json.data as IntlQuote;
+}
+
+export async function apiIntlTransfer(input: {
+  userId: string;
+  fromAccountId: string;
+  corridorId: string;
+  countryCode: string;
+  amountNgn: number;
+  beneficiaryName: string;
+  beneficiaryAccount: string;
+  beneficiaryBank?: string;
+  note?: string;
+  pin: string;
+  idempotencyKey: string;
+}) {
+  const res = await fetch(`${base}/api/v1/international/transfers`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': input.idempotencyKey,
+    },
+    body: JSON.stringify(input),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'International transfer failed');
+  return json.data as {
+    id: string;
+    status: string;
+    corridor: string;
+    country: string;
+    currency: string;
+    amountNgn: number;
+    feeNgn: number;
+    totalDebitNgn: number;
+    fxRate: number;
+    amountForeign: number;
+    beneficiaryName: string;
+    settlementNote: string | null;
+  };
+}
+
+export async function apiListIntlTransfers(userId: string) {
+  const res = await fetch(
+    `${base}/api/v1/international/transfers?userId=${encodeURIComponent(userId)}`
+  );
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'List failed');
+  return json.data as Array<{
+    id: string;
+    status: string;
+    corridor: string;
+    country: string;
+    currency: string;
+    amountNgn: number;
+    feeNgn: number;
+    amountForeign: number;
+    fxRate: number;
+    beneficiaryName: string;
+    createdAt: string;
+  }>;
 }
