@@ -7,6 +7,7 @@ const schema = z.object({
   fullName: z.string().min(2),
   password: z.string().min(6),
   pin: z.string().regex(/^\d{4}$/),
+  phone: z.string().min(10).max(15).optional(),
 });
 
 export async function POST(req: NextRequest) {
