@@ -1,1 +1,287 @@
-// placeholder - will fix
+// Nakconel Phase 1 — database schema (sqlite locally, postgresql in docker)
+// Immutable ledger: never UPDATE/DELETE journal entries; reverse only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  fullName     String
+  phone        String?
+  address      String?
+  passwordHash String
+  pinHash      String
+  kycStatus    KycStatus @default(NONE)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts     Account[]
+  kycSubmissions KycSubmission[]
+  auditLogs    AuditLog[]
+  businessProfiles BusinessProfile[]
+}
+
+enum KycStatus {
+  NONE
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Account {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  currency  String   @default("NGN")
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  transfersFrom Transfer[] @relation("FromAccount")
+  transfersTo   Transfer[] @relation("ToAccount")
+}
+
+model Journal {
+  id          String   @id @default(uuid())
+  description String
+  createdAt   DateTime @default(now())
+  entries     LedgerEntry[]
+}
+
+model LedgerEntry {
+  id               String   @id @default(uuid())
+  journalId        String
+  journal          Journal  @relation(fields: [journalId], references: [id])
+  debitAccountId   String
+  creditAccountId  String
+  amount           Int
+  currency         String   @default("NGN")
+  reference        String
+  status           String   @default("POSTED")
+  metadata         Json?
+  timestamp        DateTime @default(now())
+
+  @@index([debitAccountId])
+  @@index([creditAccountId])
+  @@index([reference])
+}
+
+model Transfer {
+  id                 String         @id @default(uuid())
+  fromAccountId      String
+  fromAccount        Account        @relation("FromAccount", fields: [fromAccountId], references: [id])
+  toAccountId        String?
+  toAccount          Account?       @relation("ToAccount", fields: [toAccountId], references: [id])
+  amount             Int
+  fee                Int            @default(0)
+  currency           String         @default("NGN")
+  status             TransferStatus @default(CREATED)
+  beneficiaryName    String
+  beneficiaryAccount String
+  note               String?
+  idempotencyKey     String         @unique
+  journalId          String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([fromAccountId])
+  @@index([status])
+}
+
+enum TransferStatus {
+  CREATED
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REVERSED
+  REQUIRES_REVIEW
+}
+
+model KycSubmission {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  fullName    String
+  dateOfBirth String
+  phone       String
+  address     String
+  bvnEnc      String
+  idType      String
+  status      KycStatus @default(PENDING)
+  providerRef String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  resource  String
+  resourceId String?
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model IdempotencyRecord {
+  key       String   @id
+  response  Json
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+// Phase 2: Nakconel Business
+
+model BusinessProfile {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  businessName String
+  businessType String   @default("SME")
+  rcNumber     String?
+  tin          String?
+  industry     String?
+  address      String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  invoices     Invoice[]
+  paymentLinks PaymentLink[]
+  expenses     Expense[]
+  teamMembers  TeamMember[]
+  collections  Collection[]
+
+  @@index([userId])
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  businessId     String
+  business       BusinessProfile @relation(fields: [businessId], references: [id])
+  invoiceNumber  String
+  customerName   String
+  customerEmail  String?
+  customerPhone  String?
+  amount         Int
+  currency       String   @default("NGN")
+  description    String?
+  status         InvoiceStatus @default(DRAFT)
+  dueDate        DateTime?
+  paidAt         DateTime?
+  paymentLinkId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([businessId, invoiceNumber])
+  @@index([businessId])
+  @@index([status])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  UNPAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model PaymentLink {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    BusinessProfile @relation(fields: [businessId], references: [id])
+  title       String
+  amount      Int?
+  currency    String   @default("NGN")
+  slug        String   @unique
+  status      String   @default("ACTIVE")
+  collectCount Int     @default(0)
+  totalCollected Int   @default(0)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([slug])
+}
+
+model Collection {
+  id            String   @id @default(uuid())
+  businessId    String
+  business      BusinessProfile @relation(fields: [businessId], references: [id])
+  source        String
+  sourceId      String?
+  amount        Int
+  currency      String   @default("NGN")
+  payerName     String?
+  payerEmail    String?
+  reference     String   @unique
+  status        String   @default("COMPLETED")
+  createdAt     DateTime @default(now())
+
+  @@index([businessId])
+  @@index([createdAt])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    BusinessProfile @relation(fields: [businessId], references: [id])
+  category    String
+  title       String
+  amount      Int
+  currency    String   @default("NGN")
+  note        String?
+  spentAt     DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([businessId])
+  @@index([category])
+}
+
+model TeamMember {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    BusinessProfile @relation(fields: [businessId], references: [id])
+  fullName    String
+  email       String
+  role        String   @default("STAFF")
+  salaryKobo  Int      @default(0)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  payments    TeamPayment[]
+
+  @@index([businessId])
+}
+
+model TeamPayment {
+  id            String   @id @default(uuid())
+  teamMemberId  String
+  teamMember    TeamMember @relation(fields: [teamMemberId], references: [id])
+  amount        Int
+  currency      String   @default("NGN")
+  period        String?
+  status        String   @default("PENDING")
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([teamMemberId])
+}
