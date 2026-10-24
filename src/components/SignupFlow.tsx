@@ -109,7 +109,8 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
         return;
       }
       if (pass.length < 6) {
-        onToast('Password must be at least 6 characters');\n        return;
+        onToast('Password must be at least 6 characters');
+        return;
       }
       setStep('bvn');
       return;
