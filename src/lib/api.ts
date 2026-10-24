@@ -73,3 +73,166 @@ export async function apiTransfer(input: {
   if (!res.ok || !json.success) throw new Error(json.error || 'Transfer failed');
   return json.data;
 }
+
+export async function apiBizProfile(userId: string, businessName?: string) {
+  const res = await fetch('/api/v1/business/profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, businessName }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Business profile failed');
+  return json.data;
+}
+
+export async function apiBizAnalytics(userId: string) {
+  const res = await fetch(`/api/v1/business/analytics?userId=${encodeURIComponent(userId)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Analytics failed');
+  return json.data as {
+    businessName: string | null;
+    totalCollected: number;
+    totalExpenses: number;
+    net: number;
+    unpaidInvoices: number;
+    unpaidAmount: number;
+    activeLinks: number;
+    teamCount: number;
+    collectionCount: number;
+  };
+}
+
+export async function apiCreateInvoice(body: {
+  userId: string;
+  customerName: string;
+  customerEmail?: string;
+  amount: number;
+  description?: string;
+}) {
+  const res = await fetch('/api/v1/business/invoices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Invoice failed');
+  return json.data;
+}
+
+export async function apiListInvoices(userId: string) {
+  const res = await fetch(`/api/v1/business/invoices?userId=${encodeURIComponent(userId)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'List invoices failed');
+  return json.data as Array<{
+    id: string;
+    invoiceNumber: string;
+    customerName: string;
+    amount: number;
+    status: string;
+    paymentUrl: string;
+    createdAt: string;
+  }>;
+}
+
+export async function apiCreatePaymentLink(body: { userId: string; title: string; amount?: number }) {
+  const res = await fetch('/api/v1/business/payment-links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Payment link failed');
+  return json.data;
+}
+
+export async function apiListPaymentLinks(userId: string) {
+  const res = await fetch(`/api/v1/business/payment-links?userId=${encodeURIComponent(userId)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'List links failed');
+  return json.data as Array<{
+    id: string;
+    title: string;
+    amount: number | null;
+    url: string;
+    status: string;
+    collectCount: number;
+  }>;
+}
+
+export async function apiListCollections(userId: string) {
+  const res = await fetch(`/api/v1/business/collections?userId=${encodeURIComponent(userId)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Collections failed');
+  return json.data as Array<{
+    id: string;
+    reference: string;
+    amount: number;
+    source: string;
+    payerName: string | null;
+    createdAt: string;
+  }>;
+}
+
+export async function apiCreateExpense(body: {
+  userId: string;
+  category: string;
+  title: string;
+  amount: number;
+  note?: string;
+}) {
+  const res = await fetch('/api/v1/business/expenses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Expense failed');
+  return json.data;
+}
+
+export async function apiListExpenses(userId: string) {
+  const res = await fetch(`/api/v1/business/expenses?userId=${encodeURIComponent(userId)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'List expenses failed');
+  return json.data as Array<{ id: string; category: string; title: string; amount: number; spentAt: string }>;
+}
+
+export async function apiAddTeamMember(body: {
+  userId: string;
+  fullName: string;
+  email: string;
+  role?: string;
+  salary?: number;
+}) {
+  const res = await fetch('/api/v1/business/team', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Team member failed');
+  return json.data;
+}
+
+export async function apiListTeam(userId: string) {
+  const res = await fetch(`/api/v1/business/team?userId=${encodeURIComponent(userId)}`);
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'List team failed');
+  return json.data as Array<{ id: string; fullName: string; email: string; role: string; salary: number; status: string }>;
+}
+
+export async function apiPayTeamMember(body: {
+  userId: string;
+  teamMemberId: string;
+  amount?: number;
+  period?: string;
+}) {
+  const res = await fetch('/api/v1/business/team', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, action: 'pay' }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Team pay failed');
+  return json.data;
+}
