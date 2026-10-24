@@ -1,4 +1,4 @@
-// Nakconel Phase 1 — database schema (sqlite locally, postgresql in docker)
+// Nakconel — database schema (postgresql)
 // Immutable ledger: never UPDATE/DELETE journal entries; reverse only.
 
 generator client {
@@ -284,4 +284,33 @@ model TeamPayment {
   createdAt     DateTime @default(now())
 
   @@index([teamMemberId])
+}
+
+// Phase 3: International
+
+model InternationalTransfer {
+  id                   String   @id @default(uuid())
+  userId               String
+  fromAccountId        String
+  corridor             String
+  destinationCountry   String
+  destinationCurrency  String
+  amountNgnKobo        Int
+  feeKobo              Int
+  fxRate               Float
+  amountForeign        Float
+  beneficiaryName      String
+  beneficiaryAccount   String
+  beneficiaryBank      String?
+  note                 String?
+  status               String   @default("PENDING")
+  settlementNote       String?
+  idempotencyKey       String   @unique
+  journalId            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([userId])
+  @@index([corridor])
+  @@index([status])
 }
