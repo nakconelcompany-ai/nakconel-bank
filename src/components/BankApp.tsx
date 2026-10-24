@@ -5,6 +5,7 @@ import { apiBalance, apiLogin, apiRegister, apiTransfer, type Session } from '@/
 import { NG_BANKS, resolveAccountName } from '@/lib/banks';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
+import SignupFlow from '@/components/SignupFlow';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconCard,
   IconHistory, IconUser, IconBiz, IconEye, IconEyeOff,
@@ -53,13 +54,6 @@ export default function BankApp() {
   const [loading, setLoading] = useState(false);
   const [cardFrozen, setCardFrozen] = useState(false);
   const [cardRevealed, setCardRevealed] = useState(false);
-
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPass, setLoginPass] = useState('');
-  const [suName, setSuName] = useState('');
-  const [suEmail, setSuEmail] = useState('');
-  const [suPass, setSuPass] = useState('');
-  const [suPin, setSuPin] = useState('');
 
   const [sendAmount, setSendAmount] = useState('');
   const [sendBank, setSendBank] = useState('');
@@ -145,41 +139,6 @@ export default function BankApp() {
     setBalance(0);
     setTxs([]);
     setView('landing');
-  };
-
-  const handleSignup = async () => {
-    if (!suName || !suEmail || !suPass || !/^\d{4}$/.test(suPin)) {
-      showToast('Fill all fields. PIN must be 4 digits.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await apiRegister({ email: suEmail, fullName: suName, password: suPass, pin: suPin });
-      const s = await apiLogin(suEmail, suPass);
-      persistSession(s);
-      if (s.accountId) await refreshBalance(s.accountId);
-      setView('home');
-      showToast('Welcome to Nakconel');
-    } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Signup failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = async () => {
-    setLoading(true);
-    try {
-      const s = await apiLogin(loginEmail, loginPass);
-      persistSession(s);
-      if (s.accountId) await refreshBalance(s.accountId);
-      setView('home');
-      showToast(`Welcome back, ${s.fullName.split(' ')[0]}`);
-    } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : 'Login failed');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const openPin = (action: 'send' | 'topup') => {
@@ -323,33 +282,16 @@ export default function BankApp() {
 
   if (view === 'auth') {
     return shell(
-      <div style={{ paddingTop: 12, paddingBottom: 40 }}>
-        <button type="button" className="btn-ghost" style={{ marginBottom: 24 }} onClick={() => setView('landing')}>← Back</button>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <Logo size={64} />
-          <h2 style={{ marginTop: 16, fontSize: 26, fontWeight: 600, color: '#f0d78c' }}>Welcome</h2>
-          <p style={{ marginTop: 6, color: 'rgba(247,236,212,0.55)', fontSize: 13 }}>Secure banking, built for Africa</p>
-        </div>
-        <div className="glass" style={{ padding: 6, display: 'flex', gap: 4, marginBottom: 20 }}>
-          <button type="button" className={`tab${authTab === 'login' ? ' on' : ''}`} onClick={() => setAuthTab('login')}>Sign in</button>
-          <button type="button" className={`tab${authTab === 'signup' ? ' on' : ''}`} onClick={() => setAuthTab('signup')}>Create account</button>
-        </div>
-        {authTab === 'login' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input className="input" placeholder="Email" type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-            <input className="input" placeholder="Password" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} />
-            <button type="button" className="btn-gold" style={{ marginTop: 8 }} disabled={loading} onClick={handleLogin}>{loading ? 'Signing in…' : 'Sign in'}</button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input className="input" placeholder="Full name" value={suName} onChange={(e) => setSuName(e.target.value)} />
-            <input className="input" placeholder="Email" type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} />
-            <input className="input" placeholder="Password (min 6)" type="password" value={suPass} onChange={(e) => setSuPass(e.target.value)} />
-            <input className="input" placeholder="4-digit transaction PIN" inputMode="numeric" maxLength={4} value={suPin} onChange={(e) => setSuPin(e.target.value.replace(/\D/g, '').slice(0, 4))} />
-            <button type="button" className="btn-gold" style={{ marginTop: 8 }} disabled={loading} onClick={handleSignup}>{loading ? 'Creating…' : 'Create account'}</button>
-          </div>
-        )}
-      </div>
+      <SignupFlow
+        initialTab={authTab}
+        onToast={showToast}
+        onBack={() => setView('landing')}
+        onSuccess={async (s) => {
+          persistSession(s);
+          if (s.accountId) await refreshBalance(s.accountId);
+          setView('home');
+        }}
+      />,
     );
   }
 
@@ -490,12 +432,7 @@ export default function BankApp() {
           <input className="input" placeholder="0.00" inputMode="decimal" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} />
         </div>
         <label className="field-label">Bank</label>
-        <button
-          type="button"
-          className="input"
-          onClick={() => { setBankSearch(''); setBankPickerOpen(true); }}
-          style={{ marginBottom: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%' }}
-        >
+        <button type="button" className="input" onClick={() => { setBankSearch(''); setBankPickerOpen(true); }} style={{ marginBottom: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%' }}>
           {sendBank ? (
             <>
               <span style={{ width: 36, height: 36, borderRadius: 10, background: NG_BANKS.find((b) => b.code === sendBank)?.color || '#d4af37', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
