@@ -14,6 +14,7 @@ export async function apiRegister(body: {
   fullName: string;
   password: string;
   pin: string;
+  phone?: string;
 }) {
   const res = await fetch(`${base}/api/v1/auth/register`, {
     method: 'POST',
@@ -73,6 +74,8 @@ export async function apiTransfer(input: {
   if (!res.ok || !json.success) throw new Error(json.error || 'Transfer failed');
   return json.data;
 }
+
+// ── Phase 2 Business APIs ────────────────────────────────────────────────────
 
 export async function apiBizProfile(userId: string, businessName?: string) {
   const res = await fetch('/api/v1/business/profile', {
@@ -171,6 +174,24 @@ export async function apiListCollections(userId: string) {
     payerName: string | null;
     createdAt: string;
   }>;
+}
+
+export async function apiRecordCollection(body: {
+  userId: string;
+  source: 'INVOICE' | 'PAYMENT_LINK' | 'DIRECT';
+  sourceId?: string;
+  amount: number;
+  payerName?: string;
+  payerEmail?: string;
+}) {
+  const res = await fetch('/api/v1/business/collections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Collection failed');
+  return json.data;
 }
 
 export async function apiCreateExpense(body: {
