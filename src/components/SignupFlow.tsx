@@ -64,6 +64,10 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const faceRan = useRef(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [camReady, setCamReady] = useState(false);
+  const [camError, setCamError] = useState('');
 
   const steps: SignupStep[] = ['phone', 'details', 'email_otp', 'bvn', 'face', 'pin'];
   const stepIndex = steps.indexOf(step);
@@ -96,6 +100,12 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     setPin('');
     setPin2('');
     faceRan.current = false;
+    setCamReady(false);
+    setCamError('');
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((tr) => tr.stop());
+      streamRef.current = null;
+    }
     try {
       window.speechSynthesis?.cancel();
     } catch {
@@ -109,10 +119,41 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     let cancelled = false;
     let stage = 0;
 
+    const stopCam = () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((tr) => tr.stop());
+        streamRef.current = null;
+      }
+    };
+
     const run = async () => {
-      setFaceHint('Starting camera…');
+      setFaceHint('Opening camera…');
+      setCamError('');
+      setCamReady(false);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setCamReady(true);
+      } catch {
+        setCamError('Camera access needed. Allow camera and try again.');
+        setFaceHint('Camera permission required');
+        speak('Please allow camera access to continue.');
+        return;
+      }
+
       speak('Please look at the camera.');
-      await new Promise((r) => setTimeout(r, 900));
+      await new Promise((r) => setTimeout(r, 800));
       if (cancelled) return;
 
       for (const s of FACE_STAGES) {
@@ -124,6 +165,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
         stage += 1;
       }
       if (cancelled) return;
+      stopCam();
       setFaceDone(true);
       setFaceHint('Face matched · You can continue');
       onToast('Face verified');
@@ -132,6 +174,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     run();
     return () => {
       cancelled = true;
+      stopCam();
       try {
         window.speechSynthesis?.cancel();
       } catch {
@@ -412,47 +455,75 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
             <div className="glass" style={{ padding: 20, textAlign: 'center' }}>
               <div
                 style={{
-                  width: 160,
-                  height: 160,
-                  borderRadius: '50%',
+                  width: 200,
+                  height: 240,
+                  borderRadius: '50% / 46%',
                   margin: '0 auto 16px',
                   border: faceRing,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: faceDone ? 'rgba(95,212,146,0.12)' : 'rgba(0,0,0,0.35)',
+                  background: '#0a0606',
                   position: 'relative',
                   overflow: 'hidden',
-                  boxShadow: faceDone ? '0 0 28px rgba(95,212,146,0.25)' : '0 0 24px rgba(212,175,55,0.15)',
+                  boxShadow: faceDone
+                    ? '0 0 32px rgba(95,212,146,0.35)'
+                    : '0 0 28px rgba(212,175,55,0.2)',
                   transition: 'border-color 0.3s, box-shadow 0.3s',
                 }}
               >
-                {!faceDone && (
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  autoPlay
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: 'scaleX(-1)',
+                    opacity: faceDone ? 0.25 : camReady ? 1 : 0.4,
+                    transition: 'opacity 0.4s',
+                  }}
+                />
+                {!camReady && !faceDone && !camError && (
+                  <span style={{ position: 'relative', zIndex: 2, fontSize: 13, color: 'rgba(247,236,212,0.6)' }}>
+                    Starting camera…
+                  </span>
+                )}
+                {faceDone && (
                   <div
                     style={{
-                      position: 'absolute',
-                      inset: 12,
+                      position: 'relative',
+                      zIndex: 2,
+                      width: 72,
+                      height: 72,
                       borderRadius: '50%',
-                      background: 'radial-gradient(circle at 40% 35%, rgba(80,60,40,0.5), rgba(10,8,6,0.9))',
+                      background: 'rgba(95,212,146,0.2)',
+                      border: '2px solid #5fd492',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
-                  />
-                )}
-                {faceDone ? (
-                  <IconCheck size={48} color="#5fd492" />
-                ) : (
-                  <span style={{ fontSize: 48, opacity: 0.7, position: 'relative', zIndex: 1 }}>
-                    {faceStage === 1 ? '👈' : faceStage === 2 ? '👉' : '😊'}
-                  </span>
+                  >
+                    <IconCheck size={40} color="#5fd492" />
+                  </div>
                 )}
               </div>
               <p style={{ fontSize: 14, color: faceDone ? '#5fd492' : '#f0d78c', fontWeight: 600, marginBottom: 8, lineHeight: 1.4 }}>
                 {faceHint}
               </p>
-              <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', lineHeight: 1.5 }}>
-                {faceDone
-                  ? 'Verification complete'
-                  : 'Camera runs automatically · Follow the voice prompts · Good lighting helps'}
-              </p>
+              {camError ? (
+                <p style={{ fontSize: 12, color: '#ef7a7a', lineHeight: 1.5, marginBottom: 8 }}>{camError}</p>
+              ) : (
+                <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', lineHeight: 1.5 }}>
+                  {faceDone
+                    ? 'Verification complete'
+                    : 'Keep your face inside the oval · Follow the voice'}
+                </p>
+              )}
               {!faceDone && (
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 14 }}>
                   {FACE_STAGES.slice(0, 4).map((_, i) => (
@@ -467,6 +538,26 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
                     />
                   ))}
                 </div>
+              )}
+              {camError && (
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ marginTop: 12 }}
+                  onClick={() => {
+                    faceRan.current = false;
+                    setCamError('');
+                    setFaceDone(false);
+                    setFaceStage(0);
+                    setTimeout(() => {
+                      faceRan.current = false;
+                      setStep('bvn');
+                      setTimeout(() => setStep('face'), 50);
+                    }, 0);
+                  }}
+                >
+                  Retry camera
+                </button>
               )}
             </div>
           )}
