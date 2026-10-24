@@ -1,4 +1,4 @@
-// Nakconel Phase 1 — database schema
+// Nakconel Phase 1 + Phase 2 schema
 // Immutable ledger: never UPDATE/DELETE journal entries; reverse only.
 
 generator client {
@@ -25,6 +25,7 @@ model User {
   accounts     Account[]
   kycSubmissions KycSubmission[]
   auditLogs    AuditLog[]
+  businessProfiles BusinessProfile[]
 }
 
 enum KycStatus {
@@ -142,4 +143,145 @@ model IdempotencyRecord {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+// Phase 2: Nakconel Business
+
+model BusinessProfile {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  businessName String
+  businessType String   @default("SME")
+  rcNumber     String?
+  tin          String?
+  industry     String?
+  address      String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  invoices     Invoice[]
+  paymentLinks PaymentLink[]
+  expenses     Expense[]
+  teamMembers  TeamMember[]
+  collections  Collection[]
+
+  @@index([userId])
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  businessId     String
+  business       BusinessProfile @relation(fields: [businessId], references: [id])
+  invoiceNumber  String
+  customerName   String
+  customerEmail  String?
+  customerPhone  String?
+  amount         Int
+  currency       String   @default("NGN")
+  description    String?
+  status         InvoiceStatus @default(DRAFT)
+  dueDate        DateTime?
+  paidAt         DateTime?
+  paymentLinkId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([businessId, invoiceNumber])
+  @@index([businessId])
+  @@index([status])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  UNPAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model PaymentLink {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    BusinessProfile @relation(fields: [businessId], references: [id])
+  title       String
+  amount      Int?
+  currency    String   @default("NGN")
+  slug        String   @unique
+  status      String   @default("ACTIVE")
+  collectCount Int     @default(0)
+  totalCollected Int   @default(0)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([slug])
+}
+
+model Collection {
+  id            String   @id @default(uuid())
+  businessId    String
+  business      BusinessProfile @relation(fields: [businessId], references: [id])
+  source        String
+  sourceId      String?
+  amount        Int
+  currency      String   @default("NGN")
+  payerName     String?
+  payerEmail    String?
+  reference     String   @unique
+  status        String   @default("COMPLETED")
+  createdAt     DateTime @default(now())
+
+  @@index([businessId])
+  @@index([createdAt])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    BusinessProfile @relation(fields: [businessId], references: [id])
+  category    String
+  title       String
+  amount      Int
+  currency    String   @default("NGN")
+  note        String?
+  spentAt     DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([businessId])
+  @@index([category])
+}
+
+model TeamMember {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    BusinessProfile @relation(fields: [businessId], references: [id])
+  fullName    String
+  email       String
+  role        String   @default("STAFF")
+  salaryKobo  Int      @default(0)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  payments    TeamPayment[]
+
+  @@index([businessId])
+}
+
+model TeamPayment {
+  id            String   @id @default(uuid())
+  teamMemberId  String
+  teamMember    TeamMember @relation(fields: [teamMemberId], references: [id])
+  amount        Int
+  currency      String   @default("NGN")
+  period        String?
+  status        String   @default("PENDING")
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([teamMemberId])
 }
