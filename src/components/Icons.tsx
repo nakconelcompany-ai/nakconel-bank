@@ -120,3 +120,22 @@ export function IconShield({ size = 16, color = 'currentColor', className }: Ico
     <path d="M12 3l8 3v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
   ), className);
 }
+
+export function IconWorld({ size = 22, color = 'currentColor', className }: IconProps) {
+  return wrap(size, color, (
+    <>
+      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8" />
+      <path d="M3 12h18" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M12 3c2.5 2.8 4 6.2 4 9s-1.5 6.2-4 9c-2.5-2.8-4-6.2-4-9s1.5-6.2 4-9z" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
+    </>
+  ), className);
+}
+
+export function IconCopy({ size = 18, color = 'currentColor', className }: IconProps) {
+  return wrap(size, color, (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" stroke={color} strokeWidth="1.6" />
+      <path d="M4 16V6a2 2 0 012-2h10" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+    </>
+  ), className);
+}
