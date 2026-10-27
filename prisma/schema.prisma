@@ -86,7 +86,6 @@ model Transfer {
   beneficiaryName    String
   beneficiaryAccount String
   note               String?
-  providerRef        String?
   idempotencyKey     String         @unique
   journalId          String?
   createdAt          DateTime       @default(now())
@@ -99,22 +98,27 @@ model Transfer {
 enum TransferStatus {
   CREATED
   PENDING
+  PROCESSING
   COMPLETED
   FAILED
   REVERSED
+  REQUIRES_REVIEW
 }
 
 model KycSubmission {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  type      String   // BVN | NIN | FACE | ADDRESS
-  status    String   @default("PENDING")
-  payload   Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  fullName    String
+  dateOfBirth String
+  phone       String
+  address     String
+  bvnEnc      String    // encrypted BVN
+  idType      String
+  status      KycStatus @default(PENDING)
+  providerRef String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model AuditLog {
@@ -122,82 +126,115 @@ model AuditLog {
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
   action    String
-  entity    String?
-  entityId  String?
-  metadata  Json?
+  resource  String
+  resourceId String?
+  meta      Json?
   ip        String?
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([action])
+  @@index([createdAt])
 }
 
-// ─── Phase 2: Business ───────────────────────────────────────────────────────
+model IdempotencyRecord {
+  key       String   @id
+  response  Json
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+// ─── Phase 2: Nakconel Business ───────────────────────────────────────────────
 
 model BusinessProfile {
   id           String   @id @default(uuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id])
-  businessName String?
+  businessName String
+  businessType String   @default("SME") // SME | LIMITED | SOLE
+  rcNumber     String?
+  tin          String?
+  industry     String?
+  address      String?
+  status       String   @default("ACTIVE")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   invoices     Invoice[]
   paymentLinks PaymentLink[]
-  collections  Collection[]
   expenses     Expense[]
   teamMembers  TeamMember[]
+  collections  Collection[]
 
   @@index([userId])
 }
 
 model Invoice {
-  id            String   @id @default(uuid())
-  businessId    String
-  business      BusinessProfile @relation(fields: [businessId], references: [id])
-  invoiceNumber String
-  customerName  String
-  customerEmail String?
-  amount        Int      // kobo
-  currency      String   @default("NGN")
-  description   String?
-  status        String   @default("UNPAID") // UNPAID | PAID | CANCELLED
-  paymentUrl    String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(uuid())
+  businessId     String
+  business       BusinessProfile @relation(fields: [businessId], references: [id])
+  invoiceNumber  String
+  customerName   String
+  customerEmail  String?
+  customerPhone  String?
+  amount         Int      // kobo
+  currency       String   @default("NGN")
+  description    String?
+  status         InvoiceStatus @default(DRAFT)
+  dueDate        DateTime?
+  paidAt         DateTime?
+  paymentLinkId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  @@unique([businessId, invoiceNumber])
   @@index([businessId])
   @@index([status])
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  UNPAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
 model PaymentLink {
-  id           String   @id @default(uuid())
-  businessId   String
-  business     BusinessProfile @relation(fields: [businessId], references: [id])
-  title        String
-  amount       Int?     // kobo, null = open amount
-  currency     String   @default("NGN")
-  url          String
-  status       String   @default("ACTIVE")
-  collectCount Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(uuid())
+  businessId  String
+  business    BusinessProfile @relation(fields: [businessId], references: [id])
+  title       String
+  amount      Int?     // null = customer chooses
+  currency    String   @default("NGN")
+  slug        String   @unique
+  status      String   @default("ACTIVE") // ACTIVE | DISABLED
+  collectCount Int     @default(0)
+  totalCollected Int   @default(0) // kobo
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([businessId])
+  @@index([slug])
 }
 
 model Collection {
-  id         String   @id @default(uuid())
-  businessId String
-  business   BusinessProfile @relation(fields: [businessId], references: [id])
-  reference  String
-  amount     Int      // kobo
-  currency   String   @default("NGN")
-  source     String   // INVOICE | PAYMENT_LINK | DIRECT
-  sourceId   String?
-  payerName  String?
-  payerEmail String?
-  createdAt  DateTime @default(now())
+  id            String   @id @default(uuid())
+  businessId    String
+  business      BusinessProfile @relation(fields: [businessId], references: [id])
+  source        String   // INVOICE | PAYMENT_LINK | DIRECT
+  sourceId      String?
+  amount        Int      // kobo
+  currency      String   @default("NGN")
+  payerName     String?
+  payerEmail    String?
+  reference     String   @unique
+  status        String   @default("COMPLETED")
+  createdAt     DateTime @default(now())
 
   @@index([businessId])
   @@index([createdAt])
