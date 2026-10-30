@@ -1,4 +1,6 @@
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import authMigrationSql from "../../migrations/0001_auth.sql?raw";
+import appMigrationSql from "../../migrations/0002_nakconel.sql?raw";
 
 /** Which database backend is active. */
 export type DbSource = "neon" | "pglite";
@@ -9,6 +11,21 @@ const rawDatabaseUrl =
   typeof process !== "undefined" ? process.env.DATABASE_URL : undefined;
 const databaseUrl =
   rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
+
+const bundledMigrations: Record<string, string> = {
+  "/migrations/0001_auth.sql": authMigrationSql,
+  "/migrations/0002_nakconel.sql": appMigrationSql,
+};
+
+function sqlStatements(file: string) {
+  return file
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
 
 /**
  * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
@@ -105,15 +122,13 @@ function createNeonSql(): Promise<Sql> {
       const applied = (await client.query<{ name: string }>("select name from _migrations")).rows.map(
         (row) => row.name,
       );
-      const migrations = import.meta.glob("/migrations/*.sql", {
-        query: "?raw",
-        import: "default",
-        eager: true,
-      }) as Record<string, string>;
+      const migrations = bundledMigrations;
       for (const { name, path } of pendingMigrations(Object.keys(migrations), applied)) {
         try {
           await client.query("BEGIN");
-          await client.query(migrations[path]);
+          for (const statement of sqlStatements(migrations[path])) {
+            await client.query(statement);
+          }
           await client.query("insert into _migrations (name) values ($1)", [name]);
           await client.query("COMMIT");
         } catch (err) {
