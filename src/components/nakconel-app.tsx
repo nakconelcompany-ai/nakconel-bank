@@ -583,19 +583,27 @@ export function NakconelApp() {
           if (session.isPending) return;
           resetTo(session.user ? "home" : "welcome");
         }}
-        className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-between overflow-hidden px-8 py-16 text-center"
+        className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-between overflow-hidden px-8 py-16 text-center lg:min-h-[calc(100dvh-3rem)] lg:max-w-7xl lg:rounded-[32px] lg:px-20 lg:py-20 lg:text-left"
         style={{
           background:
             "radial-gradient(90% 45% at 100% 100%, rgba(224,181,106,0.28), transparent 55%), radial-gradient(70% 40% at 0% 88%, rgba(224,181,106,0.16), transparent 50%), linear-gradient(180deg, #6a1a22 0%, #3c0609 58%, #2a0508 100%)",
         }}
       >
-        <span />
-        <span className="flex flex-col items-center">
+        <span className="lg:hidden" />
+        <span className="flex flex-col items-center lg:mr-auto lg:items-start lg:pl-10">
           <Logo size={148} />
-          <span className="mt-6 block font-display text-[28px] tracking-[0.28em] text-[#f0d7a4]">NAKCONEL</span>
-          <span className="mt-2 block text-[11px] tracking-[0.5em] text-[#f0d7a4]">BANK</span>
+          <span className="mt-6 block font-display text-[28px] tracking-[0.28em] text-[#f0d7a4] lg:text-[40px]">NAKCONEL</span>
+          <span className="mt-2 block text-[11px] tracking-[0.5em] text-[#f0d7a4] lg:text-[13px]">BANK</span>
+          <span className="mt-10 hidden max-w-md text-[28px] font-semibold leading-tight tracking-tight text-white lg:block">Banking designed for the way you move.</span>
+          <span className="mt-4 hidden max-w-sm text-[15px] leading-7 text-[#f0d7a4]/85 lg:block">Manage everyday money, payments, and your financial future from one secure account.</span>
         </span>
-        <span className="text-[13px] text-[#f0d7a4]/90">Banking for today, building for tomorrow.</span>
+        <span className="text-[13px] text-[#f0d7a4]/90 lg:mr-auto lg:pl-10">Banking for today, building for tomorrow.</span>
+        <span className="absolute right-20 top-1/2 hidden w-[360px] -translate-y-1/2 rounded-[28px] border border-white/15 bg-white/10 p-7 text-left shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur lg:block">
+          <Shield size={24} className="text-[#f0d7a4]" />
+          <span className="mt-8 block text-[12px] font-semibold uppercase tracking-[0.18em] text-[#f0d7a4]">Secure access</span>
+          <span className="mt-3 block text-[24px] font-semibold leading-tight text-white">Your banking, protected by design.</span>
+          <span className="mt-5 block border-t border-white/15 pt-5 text-[14px] leading-6 text-[#f6ead4]/85">Sign in securely to manage your account, complete transfers, and control your cards.</span>
+        </span>
       </button>
     );
   }
