@@ -757,7 +757,12 @@ export function NakconelApp() {
               void run.then((result) => {
                 setBusy(false);
                 if (result.error) {
-                  setError(result.error.message ?? "That email or password was not accepted.");
+                  const message = result.error.message?.trim();
+                  setError(
+                    message && message !== "Internal Server Error"
+                      ? message
+                      : "The account was not saved. The server failed before it could store this email.",
+                  );
                   return;
                 }
                 if (mode === "signup") go("pin");
