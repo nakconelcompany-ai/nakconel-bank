@@ -171,10 +171,12 @@ function Btn({
   children,
   onClick,
   tone = "solid",
+  disabled = false,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   tone?: "solid" | "ghost" | "line";
+  disabled?: boolean;
 }) {
   const cls =
     tone === "solid"
@@ -186,7 +188,8 @@ function Btn({
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-semibold ${cls}`}
+      disabled={disabled}
+      className={`flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-semibold transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 ${cls}`}
     >
       {children}
     </button>
@@ -294,7 +297,7 @@ function Keypad({ onKey }: { onKey: (k: string) => void }) {
   );
 }
 
-function Nav({ tab, onNav }: { tab: Tab; onNav: (t: Tab) => void }) {
+function Nav({ tab, onNav, desktop = false }: { tab: Tab; onNav: (t: Tab) => void; desktop?: boolean }) {
   const items: { id: Tab; label: string; icon: typeof Home }[] = [
     { id: "home", label: "Home", icon: Home },
     { id: "accounts", label: "Accounts", icon: Wallet },
@@ -302,14 +305,14 @@ function Nav({ tab, onNav }: { tab: Tab; onNav: (t: Tab) => void }) {
     { id: "more", label: "More", icon: LayoutGrid },
   ];
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md justify-around border-t border-line bg-[#fffdfb]/95 px-2 py-2 backdrop-blur">
+    <nav className={desktop ? "hidden w-full flex-col gap-1 lg:flex" : "fixed inset-x-0 bottom-0 z-20 mx-auto flex w-full max-w-md justify-around border-t border-line bg-[#fffdfb]/95 px-2 py-2 backdrop-blur lg:hidden"}>
       {items.map((item) => {
         const Icon = item.icon;
         const on = tab === item.id;
         return (
-          <button key={item.id} type="button" onClick={() => onNav(item.id)} className="flex w-16 flex-col items-center gap-1 py-1">
+          <button key={item.id} type="button" onClick={() => onNav(item.id)} className={desktop ? `flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left transition-colors ${on ? "bg-[#f6ebe3] text-wine" : "text-[#b6a496] hover:bg-[#f8f0e8]"}` : "flex w-16 flex-col items-center gap-1 py-1"}>
             <Icon size={20} strokeWidth={on ? 2.4 : 1.8} className={on ? "text-wine" : "text-[#b6a496]"} />
-            <span className={`text-[11px] ${on ? "font-semibold text-wine" : "text-[#b6a496]"}`}>{item.label}</span>
+            <span className={`${desktop ? "text-[14px]" : "text-[11px]"} ${on ? "font-semibold text-wine" : "text-[#b6a496]"}`}>{item.label}</span>
           </button>
         );
       })}
@@ -554,9 +557,21 @@ export function NakconelApp() {
   const tab = tabFor(screen);
 
   const frame = (node: React.ReactNode, dark = false) => (
-    <div className={`mx-auto flex min-h-dvh w-full max-w-md flex-col shadow-[0_0_0_1px_rgba(90,40,30,0.04)] ${dark ? "bg-[#14080a] text-white" : "bg-cream text-ink"}`}>
-      <main className={`flex flex-1 flex-col gap-4 px-5 pt-7 ${tab ? "pb-28" : "pb-6"}`}>{node}</main>
-      {tab ? <Nav tab={tab} onNav={onNav} /> : null}
+    <div className="min-h-dvh bg-[#efe2d2] lg:p-6">
+      <div className={`mx-auto flex min-h-dvh w-full max-w-md flex-col shadow-[0_0_0_1px_rgba(90,40,30,0.04)] lg:min-h-[calc(100dvh-3rem)] lg:max-w-7xl lg:flex-row lg:overflow-hidden lg:rounded-[32px] lg:shadow-[0_18px_60px_rgba(60,6,9,0.12)] ${dark ? "bg-[#14080a] text-white" : "bg-cream text-ink"}`}>
+        <aside className="hidden w-[272px] shrink-0 flex-col border-r border-[#eadfd2] bg-paper px-5 py-8 lg:flex">
+          <div className="flex items-center gap-3 px-2">
+            <Logo size={42} />
+            <div className="text-left"><p className="font-display text-[16px] tracking-[0.16em] text-wine">NAKCONEL</p><p className="mt-0.5 text-[9px] tracking-[0.34em] text-muted">BANK</p></div>
+          </div>
+          <div className="mt-12">{tab ? <Nav tab={tab} onNav={onNav} desktop /> : <p className="px-2 text-[13px] leading-6 text-muted">Secure banking designed around your everyday finances.</p>}</div>
+          <div className="mt-auto rounded-2xl bg-[#f6ebe3] p-4"><Shield size={18} className="text-wine" /><p className="mt-3 text-[13px] font-semibold text-ink">Your security matters</p><p className="mt-1 text-[12px] leading-5 text-muted">Your account is protected with encrypted sign-in and a secure PIN.</p></div>
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className={`mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-5 pt-7 lg:px-10 lg:pt-10 ${tab ? "pb-28 lg:pb-10" : "pb-6 lg:pb-10"}`}>{node}</main>
+          {tab ? <Nav tab={tab} onNav={onNav} /> : null}
+        </div>
+      </div>
     </div>
   );
 
@@ -587,35 +602,38 @@ export function NakconelApp() {
 
   if (screen === "welcome") {
     return frame(
-      <div className="flex flex-1 flex-col">
-        <div className="mt-10 flex flex-col items-center">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col lg:justify-center">
+        <div className="mt-10 flex flex-col items-center lg:mt-0">
           <Logo size={86} />
           <div className="mt-4">
             <Wordmark />
           </div>
-          <h1 className="mt-10 text-center text-[26px] font-semibold tracking-tight">Welcome to Nakconel Bank</h1>
-          <p className="mt-2 text-[13px] text-muted">Secure. Simple. Global.</p>
+          <p className="mt-8 text-[12px] font-semibold uppercase tracking-[0.16em] text-wine">Personal banking</p>
+          <h1 className="mt-3 text-center text-[26px] font-semibold tracking-tight lg:text-[36px]">Open an account in minutes</h1>
+          <p className="mt-3 max-w-sm text-center text-[14px] leading-6 text-muted">Register securely, create your banking PIN, and complete your profile when you are ready.</p>
         </div>
-        <div className="mt-auto flex flex-col gap-3 pt-16">
+        <div className="mt-auto flex flex-col gap-3 pt-16 lg:mt-10 lg:pt-0">
           <Btn
             onClick={() => {
               setMode("signup");
               setPhone("");
-              setOtp("");
               setPin("");
-              go("phone");
+              setName("");
+              setEmail("");
+              setPassword("");
+              go("access");
             }}
           >
-            Get Started
+            Register an account
           </Btn>
           <Btn
             tone="ghost"
             onClick={() => {
               setMode("login");
-              setPhone("");
-              setOtp("");
               setPin("");
-              go("phone");
+              setEmail("");
+              setPassword("");
+              go("access");
             }}
           >
             Log in
@@ -635,11 +653,12 @@ export function NakconelApp() {
           </div>
         </div>
         <div className="mt-6">
-          <h1 className="text-center text-[22px] font-semibold">Enter your phone number</h1>
-          <p className="mt-1 text-center text-[13px] text-muted">This becomes your Nakconel account number.</p>
+          <p className="text-center text-[12px] font-semibold uppercase tracking-[0.16em] text-wine">Step 2 of 4</p>
+          <h1 className="mt-2 text-center text-[22px] font-semibold">Add your mobile number</h1>
+          <p className="mt-1 text-center text-[13px] text-muted">We use this to protect and support your account.</p>
         </div>
         <div className="mt-5 flex h-14 items-center gap-3 rounded-2xl border border-line bg-paper px-3">
-          <span className="text-lg">🇳🇬</span>
+          <Smartphone size={20} className="text-wine" aria-hidden="true" />
           <span className="text-[15px] font-semibold">+234</span>
           <span className="text-[15px] tabular-nums text-ink">{phone ? phonePretty : <span className="text-[#c3b2a4]">Phone number</span>}</span>
         </div>
@@ -651,26 +670,13 @@ export function NakconelApp() {
                 setError("Enter the 10 digits after +234.");
                 return;
               }
-              setOtp("");
-              go(session.user ? "pin" : "access");
+              go(mode === "signup" ? "pin" : "access");
             }}
           >
             Continue
           </Btn>
         </div>
-        <p className="mt-3 text-center text-[13px] text-muted">
-          Don’t have an account?{" "}
-          <button
-            type="button"
-            className="font-semibold text-wine"
-            onClick={() => {
-              setMode("signup");
-              setError("");
-            }}
-          >
-            Register
-          </button>
-        </p>
+        <p className="mt-3 text-center text-[12px] leading-5 text-muted">Your number is stored securely and is never displayed publicly.</p>
         <Keypad
           onKey={(k) => {
             setError("");
@@ -734,30 +740,37 @@ export function NakconelApp() {
 
   if (screen === "access") {
     return frame(
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 lg:justify-center">
         <BackTitle
-          title={mode === "signup" ? "Create your account" : "Log in"}
-          sub={mode === "signup" ? "Email and password are saved. We do not accept a made-up code." : "Use the email and password for this account."}
+          title={mode === "signup" ? "Open your account" : "Welcome back"}
+          sub={mode === "signup" ? "Step 1 of 4 · Start with your secure sign-in details." : "Use the email and password linked to your Nakconel account."}
           onBack={back}
         />
+        {mode === "signup" ? <Field label="Full name" value={name} onChange={setName} placeholder="Enter your full name" /> : null}
         <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="you@email.com" />
         <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" />
+        {mode === "signup" ? <p className="text-[12px] leading-5 text-muted">Use at least 8 characters. You will create a separate 4-digit transaction PIN next.</p> : null}
         {error ? <p className="text-[12px] text-wine">{error}</p> : null}
-        <div className="mt-auto">
+        <div className="mt-auto pt-5">
           <Btn
+            disabled={busy}
             onClick={() => {
-              if (!email.includes("@") || password.length < 8) {
-                setError("Use a real email and a password of at least 8 characters.");
+              void (async () => {
+              if ((mode === "signup" && name.trim().length < 3) || !email.includes("@") || password.length < 8) {
+                setError("Enter your full name, a valid email, and a password of at least 8 characters.");
                 return;
               }
               setBusy(true);
-              const run = mode === "signup"
-                ? authClient.signUp.email({ email, password, name: email.split("@")[0] })
-                : authClient.signIn.email({ email, password });
-              void run.then((result) => {
-                setBusy(false);
+              const result = await (mode === "signup"
+                ? authClient.signUp.email({ email, password, name: name.trim() })
+                : authClient.signIn.email({ email, password }));
                 if (result.error) {
+                  setBusy(false);
                   const message = result.error.message?.trim();
+                  if (mode === "signup" && /already|exist/i.test(message ?? "")) {
+                    setError("An account already exists for this email. Log in instead.");
+                    return;
+                  }
                   setError(
                     message && message !== "Internal Server Error"
                       ? message
@@ -765,14 +778,45 @@ export function NakconelApp() {
                   );
                   return;
                 }
-                if (mode === "signup") go("pin");
-                else resetTo("home");
+                if (mode === "signup") {
+                  const sessionResult = await authClient.getSession();
+                  if (!sessionResult.data?.user) {
+                    const signInResult = await authClient.signIn.email({ email, password });
+                    if (signInResult.error) {
+                      setBusy(false);
+                      setError("Your account was created, but we could not sign you in. Please use Log in to continue.");
+                      setMode("login");
+                      return;
+                    }
+                  }
+                  setBusy(false);
+                  go("phone");
+                } else {
+                  const nextWallet = await getWallet();
+                  setWallet(nextWallet);
+                  setBusy(false);
+                  if (!nextWallet.hasPin) {
+                    setMode("signup");
+                    resetTo("pin");
+                  } else {
+                    resetTo("home");
+                  }
+                }
+              })().catch(() => {
+                setBusy(false);
+                setError("We could not complete your sign-in. Please try again.");
               });
             }}
           >
-            {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Log in"}
+            {busy ? "Please wait…" : mode === "signup" ? "Continue registration" : "Log in"}
           </Btn>
         </div>
+        <p className="text-center text-[13px] text-muted">
+          {mode === "signup" ? "Already have an account?" : "New to Nakconel?"}{" "}
+          <button type="button" className="font-semibold text-wine" onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); setPassword(""); }}>
+            {mode === "signup" ? "Log in" : "Register"}
+          </button>
+        </p>
       </div>,
     );
   }
