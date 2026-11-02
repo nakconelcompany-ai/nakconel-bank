@@ -100,15 +100,6 @@ type Tx = {
   ref?: string;
 };
 
-const TXS: Tx[] = [
-  { id: "1", title: "Airtime Purchase", meta: "Today · MTN", amount: -1000, who: "MTN", ref: "NAK123450001" },
-  { id: "2", title: "Money Sent", meta: "Today · Zenith Bank", amount: -15000, who: "Mary Johnson", bank: "Zenith Bank", ref: "NAK123456789" },
-  { id: "3", title: "Electricity Bill", meta: "Yesterday · IKEDC", amount: -5500, who: "IKEDC", ref: "NAK123450003" },
-  { id: "4", title: "Food & Dining", meta: "Yesterday · 2:14 PM", amount: -8000, who: "Food Court", ref: "NAK123450004" },
-  { id: "5", title: "Shopping", meta: "Mon · 4:02 PM", amount: -12000, who: "Slot Store", ref: "NAK123450005" },
-  { id: "6", title: "Money Received", meta: "Mon · Adeola Stores", amount: 85000, who: "Adeola Stores", bank: "Nakconel", ref: "NAK123450006" },
-];
-
 const ACCOUNTS = [
   { id: "main", name: "Main Wallet", bal: 542750, hint: "Available balance" },
   { id: "sav", name: "Savings Account", bal: 120000, hint: "4.5% per year" },
@@ -360,7 +351,7 @@ export function NakconelApp() {
   const [who, setWho] = useState("Recent");
   const [fund, setFund] = useState("Account");
   const [bill, setBill] = useState("Airtime");
-  const [tx, setTx] = useState<Tx>(TXS[1]);
+  const [tx, setTx] = useState<Tx>({ id: "", title: "", meta: "", amount: 0, who: "" });
   const [online, setOnline] = useState(true);
   const [atm, setAtm] = useState(false);
   const [intl, setIntl] = useState(false);
@@ -689,6 +680,10 @@ export function NakconelApp() {
                   go("access");
                   return;
                 }
+                const savedPhone = phone.length === 10 ? `0${phone}` : phone;
+                void saveProfile({
+                  data: { fullName: name.trim(), phone: savedPhone, nin: "", address: "", gender: "", dob: "" },
+                }).then((next) => setWallet(next));
                 setPin("");
                 setError("");
                 go("pin");
@@ -1079,7 +1074,7 @@ export function NakconelApp() {
         >
           <p className="text-[12px] text-[#f0d7a4]/80">Total Balance</p>
           <p className="mt-1 font-display text-[32px] leading-none tracking-wide text-[#f8e7c8]">{balanceLabel}</p>
-          <p className="mt-3 text-[12px] text-[#f0d7a4]/75">Available Balance</p>
+          <p className="mt-3 text-[12px] text-[#f0d7a4]/75">Account {wallet?.accountNumber ?? "—"} · Nakconel</p>
         </div>
         <div className="grid grid-cols-4 gap-2">
           {[
@@ -1142,9 +1137,13 @@ export function NakconelApp() {
         <Pills value={acctTab} options={["Transactions", "Details", "Settings"]} onChange={setAcctTab} />
         {acctTab === "Transactions" ? (
           <Card className="px-3">
-            {TXS.slice(0, 4).map((row) => (
-              <Row key={row.id} title={row.title} meta={row.meta} amount={row.amount} onClick={() => openTx(row)} />
-            ))}
+            {shownTx.length === 0 ? (
+              <p className="py-6 text-center text-[13px] text-muted">No transactions yet</p>
+            ) : (
+              shownTx.slice(0, 4).map((row) => (
+                <Row key={row.id} title={row.title} meta={row.meta} amount={row.amount} onClick={() => openTx(row)} />
+              ))
+            )}
           </Card>
         ) : null}
         {acctTab === "Details" ? (

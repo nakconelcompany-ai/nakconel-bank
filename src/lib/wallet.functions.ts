@@ -74,7 +74,9 @@ function pinMatches(pin: string, stored: string) {
 
 function accountNumber(userId: string, phone: string) {
   const digits = phone.replace(/\D/g, "");
-  if (digits.length >= 10) return digits.slice(-10);
+  if (digits.length === 11 && digits.startsWith("0")) return digits;
+  if (digits.length === 10) return `0${digits}`;
+  if (digits.length > 11) return `0${digits.slice(-10)}`;
   let n = 0;
   for (const c of userId) n = (n * 33 + c.charCodeAt(0)) >>> 0;
   return String(n % 1_000_000_0000).padStart(10, "0");
