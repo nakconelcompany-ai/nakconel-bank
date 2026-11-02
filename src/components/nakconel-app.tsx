@@ -678,7 +678,21 @@ export function NakconelApp() {
                 setError("Enter the 10 digits after +234.");
                 return;
               }
-              go(mode === "signup" ? "pin" : "access");
+              if (mode !== "signup") {
+                go("access");
+                return;
+              }
+              void authClient.getSession().then((sessionResult) => {
+                if (!sessionResult.data?.user) {
+                  setMode("login");
+                  setError("Log in with the same email before you set a PIN.");
+                  go("access");
+                  return;
+                }
+                setPin("");
+                setError("");
+                go("pin");
+              });
             }}
           >
             Continue
@@ -764,14 +778,23 @@ export function NakconelApp() {
             disabled={busy}
             onClick={() => {
               void (async () => {
-              if ((mode === "signup" && name.trim().length < 3) || !email.includes("@") || password.length < 8) {
-                setError("Enter your full name, a valid email, and a password of at least 8 characters.");
+              const emailValue = email.trim().toLowerCase();
+              if (mode === "signup" && name.trim().length < 3) {
+                setError("Enter your full name.");
+                return;
+              }
+              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+                setError("Enter a real email, like name@gmail.com.");
+                return;
+              }
+              if (password.length < 8) {
+                setError("Use a password of at least 8 characters.");
                 return;
               }
               setBusy(true);
               const result = await (mode === "signup"
-                ? authClient.signUp.email({ email, password, name: name.trim() })
-                : authClient.signIn.email({ email, password }));
+                ? authClient.signUp.email({ email: emailValue, password, name: name.trim() })
+                : authClient.signIn.email({ email: emailValue, password }));
                 if (result.error) {
                   setBusy(false);
                   const message = result.error.message?.trim();
@@ -789,7 +812,7 @@ export function NakconelApp() {
                 if (mode === "signup") {
                   const sessionResult = await authClient.getSession();
                   if (!sessionResult.data?.user) {
-                    const signInResult = await authClient.signIn.email({ email, password });
+                    const signInResult = await authClient.signIn.email({ email: emailValue, password });
                     if (signInResult.error) {
                       setBusy(false);
                       setError("Your account was created, but we could not sign you in. Please use Log in to continue.");
@@ -867,10 +890,17 @@ export function NakconelApp() {
                   if (creating) go("face");
                   else resetTo("home");
                 })
-                .catch(() => {
+                .catch((err: unknown) => {
                   setBusy(false);
                   setPin("");
-                  setError("Create your email account before setting a PIN.");
+                  const message = err instanceof Error ? err.message : "";
+                  if (message === "Unauthorized" || /unauthorized/i.test(message)) {
+                    setMode("login");
+                    setError("Your sign-in did not stick. Log in with the same email, then set your PIN.");
+                    go("access");
+                    return;
+                  }
+                  setError(message || "The PIN could not be saved. Try again.");
                 });
             }
           }}
