@@ -73,20 +73,26 @@ export default function BusinessDemoView({ onBack }: Props) {
   }
 
   function card(content: ReactNode, key?: string) {
-    return <section key={key} className="glass" style={{ padding: 16, marginBottom: 12 }}>{content}</section>;
+    return <section key={key} className="glass demo-record-card" style={{ padding: 15, marginBottom: 11 }}>{content}</section>;
   }
 
   return (
-    <div style={{ paddingBottom: 28 }}>
-      <button type="button" className="btn-ghost" onClick={onBack} style={{ marginBottom: 14 }}>← Back</button>
-      <h1 className="page-title" style={{ marginBottom: 4 }}>Business workspace</h1>
-      <p className="page-sub" style={{ marginBottom: 14 }}>{business.name}</p>
-      <div role="status" style={{ background: 'rgba(240,215,140,0.1)', border: '1px solid rgba(240,215,140,0.32)', borderRadius: 16, color: '#f0d78c', fontSize: 13, lineHeight: 1.5, marginBottom: 14, padding: 14 }}>
-        <strong>DEMO ONLY.</strong> Sample records and simulated payments are temporary. Nothing is saved, charged, or settled.
+    <div className="demo-screen" style={{ paddingBottom: 28 }}>
+      <div className="demo-heading">
+        <div>
+          <p className="demo-eyebrow">NAKCONEL BUSINESS</p>
+          <h1 className="page-title" style={{ marginBottom: 3 }}>Business workspace</h1>
+          <p className="page-sub" style={{ marginBottom: 0 }}>{business.name}</p>
+        </div>
+        <button type="button" className="btn-ghost" onClick={onBack}>← Back</button>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 14 }}>
+      <div role="status" className="demo-banner">
+        <strong>DEMO ENVIRONMENT</strong>
+        <p>Sample records only. Nothing is saved, charged, or settled. Changes reset when you leave.</p>
+      </div>
+      <div className="demo-tabs" role="tablist" aria-label="Business workspace sections">
         {tabs.map((tab) => (
-          <button key={tab.id} type="button" className={section === tab.id ? 'btn-gold' : 'btn-ghost'} onClick={() => { setSection(tab.id); setError(''); }} style={{ width: 'auto', padding: '9px 13px', fontSize: 12 }}>
+          <button key={tab.id} type="button" role="tab" aria-selected={section === tab.id} className={`${section === tab.id ? 'btn-gold' : 'btn-ghost'} demo-tab`} onClick={() => { setSection(tab.id); setError(''); }}>
             {tab.label}
           </button>
         ))}
@@ -95,21 +101,29 @@ export default function BusinessDemoView({ onBack }: Props) {
 
       {section === 'overview' ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          <div className="demo-metrics">
             {[
               ['Collected (demo)', totals.collectedNaira],
               ['Outstanding', totals.outstandingNaira],
               ['Expenses', totals.expensesNaira],
               ['Net activity (demo)', totals.netDemoNaira],
-            ].map(([label, amount]) => card(<><p style={{ color: 'rgba(247,236,212,0.55)', fontSize: 12 }}>{label}</p><p style={{ color: '#f0d78c', fontSize: 19, fontWeight: 700, marginTop: 8 }}>{currency(Number(amount))}</p></>, String(label)))}
+            ].map(([label, amount]) => (
+              <section className="demo-metric" key={String(label)}>
+                <p className="demo-metric-label">{label}</p>
+                <p className="demo-metric-value">{currency(Number(amount))}</p>
+              </section>
+            ))}
           </div>
-          {card(<p style={{ color: 'rgba(247,236,212,0.65)', fontSize: 13 }}>{totals.invoiceCount} invoices · {totals.activeLinkCount} active links · {business.team.length} team members</p>)}
+          <section className="glass demo-overview-note">
+            <p className="demo-card-title">Workspace snapshot</p>
+            <p>{totals.invoiceCount} invoices <span>·</span> {totals.activeLinkCount} active links <span>·</span> {business.team.length} team members</p>
+          </section>
         </>
       ) : null}
 
       {section === 'invoices' ? (
         <>
-          {card(<><h2 style={{ fontSize: 15 }}>Create invoice</h2><form onSubmit={(event) => {
+          {card(<><h2 className="demo-card-title">Create invoice</h2><form onSubmit={(event) => {
             if (submit(event, (current) => addDemoInvoice(current, { id: id(), client, description, amountNaira: Number(invoiceAmount), createdAt: new Date().toISOString() }))) {
               setClient(''); setDescription(''); setInvoiceAmount('');
             }
@@ -128,7 +142,7 @@ export default function BusinessDemoView({ onBack }: Props) {
 
       {section === 'links' ? (
         <>
-          {card(<><h2 style={{ fontSize: 15 }}>Create payment link</h2><form onSubmit={(event) => {
+          {card(<><h2 className="demo-card-title">Create payment link</h2><form onSubmit={(event) => {
             if (submit(event, (current) => addDemoPaymentLink(current, { id: id(), title: linkTitle, amountNaira: Number(linkAmount), createdAt: new Date().toISOString() }))) {
               setLinkTitle(''); setLinkAmount('');
             }
@@ -143,7 +157,7 @@ export default function BusinessDemoView({ onBack }: Props) {
 
       {section === 'expenses' ? (
         <>
-          {card(<><h2 style={{ fontSize: 15 }}>Record expense</h2><form onSubmit={(event) => {
+          {card(<><h2 className="demo-card-title">Record expense</h2><form onSubmit={(event) => {
             if (submit(event, (current) => addDemoExpense(current, { id: id(), merchant: expenseName, category: expenseCategory, amountNaira: Number(expenseAmount), createdAt: new Date().toISOString() }))) {
               setExpenseName(''); setExpenseAmount('');
             }
@@ -159,7 +173,7 @@ export default function BusinessDemoView({ onBack }: Props) {
 
       {section === 'team' ? (
         <>
-          {card(<><h2 style={{ fontSize: 15 }}>Add a demo teammate</h2><form onSubmit={(event) => {
+          {card(<><h2 className="demo-card-title">Add a demo teammate</h2><form onSubmit={(event) => {
             if (submit(event, (current) => addDemoTeamMember(current, { id: id(), name: memberName, email: memberEmail, role }))) {
               setMemberName(''); setMemberEmail('');
             }

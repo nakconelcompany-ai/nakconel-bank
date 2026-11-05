@@ -99,41 +99,21 @@ export default function BankApp() {
 
   function shell(children: React.ReactNode, opts?: { nav?: boolean }) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0c0b09', color: '#f7ecd4', fontFamily: 'system-ui, sans-serif' }}>
+      <div className="app-shell">
         {toast ? (
-          <div
-            style={{
-              position: 'fixed',
-              top: 16,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 100,
-              background: '#1a1814',
-              border: '1px solid rgba(247,236,212,0.2)',
-              padding: '10px 18px',
-              borderRadius: 12,
-              fontSize: 13,
-              maxWidth: '90%',
-            }}
-          >
-            {toast}
-          </div>
+          <div className="toast" role="status">{toast}</div>
         ) : null}
-        <div style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 100px' }}>{children}</div>
+        <header className="brand-header">
+          <Logo size={44} className="brand-logo" />
+          <div className="brand-copy" aria-label="Nakconel Bank">
+            <div className="brand-name">NAKCONEL</div>
+            <div className="brand-bank">BANK</div>
+          </div>
+          <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
+        </header>
+        <main className={`app-content${opts?.nav && session ? '' : ' no-nav'}`}>{children}</main>
         {opts?.nav && session ? (
-          <nav
-            style={{
-              position: 'fixed',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              display: 'flex',
-              justifyContent: 'space-around',
-              padding: '10px 0 18px',
-              background: '#12100e',
-              borderTop: '1px solid rgba(247,236,212,0.08)',
-            }}
-          >
+          <nav className="bottom-nav" aria-label="Main navigation">
             {(
               [
                 ['home', 'Home', IconHome],
@@ -147,19 +127,10 @@ export default function BankApp() {
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: view === v ? '#f7ecd4' : 'rgba(247,236,212,0.45)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: 11,
-                  cursor: 'pointer',
-                }}
+                className={`nav-btn${view === v ? ' active' : ''}`}
+                aria-current={view === v ? 'page' : undefined}
               >
-                <Icon size={22} />
+                <span className="nav-icon-wrap"><Icon size={21} /></span>
                 {label}
               </button>
             ))}
@@ -171,39 +142,38 @@ export default function BankApp() {
 
   if (view === 'landing') {
     return shell(
-      <div style={{ paddingTop: 80, textAlign: 'center' }}>
-        <Logo size={72} />
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginTop: 24, marginBottom: 8 }}>Nakconel</h1>
-        <p style={{ color: 'rgba(247,236,212,0.55)', marginBottom: 40 }}>Banking that moves with you</p>
+      <div className="welcome-screen">
+        <section className="welcome-hero">
+          <Logo size={82} />
+          <p className="welcome-kicker">Secure · Simple · Global</p>
+          <h1>Banking for today,<br />building for tomorrow.</h1>
+          <p>Everyday money and business tools, designed to move with you.</p>
+        </section>
         <button
           type="button"
           className="btn-gold"
-          style={{ width: '100%', padding: 16, borderRadius: 14, background: '#f7ecd4', color: '#0c0b09', fontWeight: 600, border: 'none', fontSize: 16 }}
+          style={{ minHeight: 50 }}
           onClick={() => {
             setAuthTab('signup');
             setView('auth');
           }}
-        >
-          Get started
-        </button>
+        >Get started</button>
         <button
           type="button"
-          style={{ marginTop: 12, background: 'none', border: 'none', color: 'rgba(247,236,212,0.6)', fontSize: 14 }}
+          className="btn-outline"
+          style={{ marginTop: 10, minHeight: 48 }}
           onClick={() => {
             setAuthTab('login');
             setView('auth');
           }}
-        >
-          I already have an account
-        </button>
-        <button
-          type="button"
-          className="btn-ghost"
-          style={{ marginTop: 24, width: '100%', padding: 14 }}
-          onClick={() => setView('business-demo')}
-        >
-          Explore business demo
-        </button>
+        >I already have an account</button>
+        <div className="welcome-demo">
+          <p>Explore Nakconel Business</p>
+          <span>Try invoices, payment links and expenses with sample data.</span>
+          <button type="button" className="home-shortcut" onClick={() => setView('business-demo')}>
+            <span>Open business demo</span><span aria-hidden="true">→</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -246,24 +216,25 @@ export default function BankApp() {
 
   if (view === 'home' && session) {
     return shell(
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div className="home-screen">
+        <div className="home-greeting">
           <div>
-            <div style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)' }}>Hello</div>
-            <div style={{ fontWeight: 600 }}>{session.fullName.split(' ')[0]}</div>
+            <div className="eyebrow">Good day,</div>
+            <div className="name">{session.fullName.split(' ')[0]}</div>
           </div>
-          <Logo size={36} />
+          <span className="home-avatar" aria-hidden="true">{session.fullName.trim().charAt(0).toUpperCase()}</span>
         </div>
-        <div style={{ background: 'linear-gradient(135deg,#1a1814,#2a241c)', borderRadius: 20, padding: 24, marginBottom: 24 }}>
-          <div style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-            Available balance
-            <button type="button" onClick={() => setShowBal(!showBal)} style={{ background: 'none', border: 'none', color: 'rgba(247,236,212,0.5)', cursor: 'pointer' }}>
+        <section className="balance-card" aria-label="Available balance">
+          <div className="balance-label">
+            <span>Available balance</span>
+            <button type="button" aria-label={showBal ? 'Hide balance' : 'Show balance'} onClick={() => setShowBal(!showBal)}>
               {showBal ? <IconEye /> : <IconEyeOff />}
             </button>
           </div>
-          <div style={{ fontSize: 32, fontWeight: 700 }}>{showBal ? balance?.formatted || '₦0.00' : '••••••'}</div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
+          <div className="balance-amount">{showBal ? balance?.formatted || '₦0.00' : '••••••••'}</div>
+          <div className="balance-caption">Naira wallet <span>•</span> NGN</div>
+        </section>
+        <div className="quick-actions">
           {(
             [
               ['send', IconSend, 'Send'],
@@ -276,21 +247,9 @@ export default function BankApp() {
               key={label}
               type="button"
               onClick={() => setView(v)}
-              style={{
-                background: 'rgba(247,236,212,0.06)',
-                border: '1px solid rgba(247,236,212,0.1)',
-                borderRadius: 16,
-                padding: '14px 8px',
-                color: '#f7ecd4',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 12,
-                cursor: 'pointer',
-              }}
+              className="quick-action"
             >
-              <Icon />
+              <span className="quick-action-icon"><Icon size={20} /></span>
               {label}
             </button>
           ))}
@@ -298,17 +257,28 @@ export default function BankApp() {
         <button
           type="button"
           onClick={() => setView('business')}
-          style={{ width: '100%', padding: 14, borderRadius: 14, background: 'rgba(247,236,212,0.08)', border: '1px solid rgba(247,236,212,0.12)', color: '#f7ecd4', marginBottom: 12, cursor: 'pointer' }}
+          className="home-shortcut"
         >
-          Business banking →
+          <span><strong>Business banking</strong><br /><small>Manage invoices and expenses</small></span><span aria-hidden="true">→</span>
         </button>
         <button
           type="button"
           onClick={() => setView('international')}
-          style={{ width: '100%', padding: 14, borderRadius: 14, background: 'rgba(247,236,212,0.08)', border: '1px solid rgba(247,236,212,0.12)', color: '#f7ecd4', cursor: 'pointer' }}
+          className="home-shortcut"
         >
-          International transfers →
+          <span><strong>International</strong><br /><small>View indicative exchange estimates</small></span><span aria-hidden="true">→</span>
         </button>
+        <h2 className="section-heading">Recent activity</h2>
+        <section className="glass activity-card">
+          {txs.length === 0 ? (
+            <p className="activity-empty">Your recent transactions will appear here.</p>
+          ) : txs.slice(0, 4).map((t) => (
+            <div key={t.id} className="tx-row">
+              <div><strong>{t.title}</strong><div className="activity-meta">{t.status}</div></div>
+              <strong className={t.type === 'send' ? 'activity-out' : 'activity-in'}>{t.type === 'send' ? '−' : '+'}{formatNGN(t.amount)}</strong>
+            </div>
+          ))}
+        </section>
       </div>,
       { nav: true }
     );
