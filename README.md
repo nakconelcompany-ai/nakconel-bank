@@ -1,6 +1,7 @@
 # Nakconel Bank
 
-Phase 1 modular monolith — Next.js + Prisma + PostgreSQL (Neon).
+Nakconel Bank — Next.js + Prisma + PostgreSQL (Neon), with wallet, business,
+and international-workspace screens.
 
 ## Quick start
 
@@ -12,6 +13,14 @@ npm run dev
 ```
 
 Health: http://localhost:3000/api/v1/health
+
+## Business demo
+
+Choose **Explore business demo** on the welcome screen, or open **Explore
+business demo** from Business Banking. The preview uses local sample records
+only; changes reset when you leave it or reload, and simulated payments never
+request or settle funds. The saved Business Banking workspace remains separate
+from the demo.
 
 ## Architecture
 

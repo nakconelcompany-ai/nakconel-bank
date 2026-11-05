@@ -5,6 +5,7 @@ import { apiBalance, apiLogin, apiRegister, apiTransfer, type Session } from '@/
 import { NG_BANKS, resolveAccountName } from '@/lib/banks';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
+import BusinessDemoView from '@/components/BusinessDemoView';
 import SignupFlow from '@/components/SignupFlow';
 import InternationalView from '@/components/InternationalView';
 import {
@@ -15,7 +16,7 @@ import {
 
 type View =
   | 'landing' | 'auth' | 'home' | 'send' | 'receive' | 'topup'
-  | 'history' | 'card' | 'kyc' | 'account' | 'pin' | 'success' | 'business' | 'international';
+  | 'history' | 'card' | 'kyc' | 'account' | 'pin' | 'success' | 'business' | 'business-demo' | 'international';
 
 type Tx = {
   id: string;
@@ -239,6 +240,14 @@ export default function BankApp() {
         >
           I already have an account
         </button>
+        <button
+          type="button"
+          className="btn-ghost"
+          style={{ marginTop: 24, width: '100%', padding: 14 }}
+          onClick={() => setView('business-demo')}
+        >
+          Explore business demo
+        </button>
       </div>
     );
   }
@@ -256,6 +265,10 @@ export default function BankApp() {
         }}
       />
     );
+  }
+
+  if (view === 'business-demo') {
+    return shell(<BusinessDemoView onBack={() => setView('landing')} />);
   }
 
   if (view === 'business' && session) {

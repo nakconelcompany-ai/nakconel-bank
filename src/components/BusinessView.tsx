@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Logo from '@/components/Logo';
+import BusinessDemoView from '@/components/BusinessDemoView';
 import {
   apiBizAnalytics,
   apiBizProfile,
@@ -57,6 +58,7 @@ type Props = {
 
 export default function BusinessView({ userId, fullName, onToast }: Props) {
   const [tab, setTab] = useState<Tab>('overview');
+  const [showDemo, setShowDemo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analytics, setAnalytics] = useState<Awaited<ReturnType<typeof apiBizAnalytics>> | null>(null);
   const [invoices, setInvoices] = useState<Awaited<ReturnType<typeof apiListInvoices>>>([]);
@@ -105,6 +107,10 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
     refresh();
   }, [refresh]);
 
+  if (showDemo) {
+    return <BusinessDemoView onBack={() => setShowDemo(false)} />;
+  }
+
   const run = async (fn: () => Promise<void>) => {
     setLoading(true);
     try {
@@ -136,6 +142,16 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
           </h2>
           <p style={{ fontSize: 12, color: '#d4af37', marginTop: 2, fontWeight: 600 }}>Nakconel Business</p>
         </div>
+      </div>
+
+      <div className="glass" style={{ padding: 14, marginTop: 14 }}>
+        <p style={{ fontWeight: 600, fontSize: 13 }}>Try the interactive demo</p>
+        <p style={{ color: 'rgba(247,236,212,0.5)', fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>
+          Explore sample invoices, links, expenses, and team tools. Demo changes are temporary and never affect your saved business records.
+        </p>
+        <button type="button" className="btn-ghost" onClick={() => setShowDemo(true)} style={{ marginTop: 10 }}>
+          Explore business demo
+        </button>
       </div>
 
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginTop: 16 }}>
