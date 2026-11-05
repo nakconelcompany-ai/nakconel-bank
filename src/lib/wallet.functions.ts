@@ -1,8 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scryptSync } from "node:crypto";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { findBank } from "@/lib/banks";
 import { getSql } from "@/lib/db";
+import { parseLedgerCursor, type LedgerCursor } from "@/lib/wallet/pagination";
+import { getWalletCapabilities, isConfirmedTopup } from "@/lib/wallet/policy";
+
+const TRANSACTION_PAGE_SIZE = 50;
 
 export type LedgerEntry = {
   id: string;
@@ -26,13 +30,13 @@ export type Beneficiary = {
 
 export type WalletView = {
   balanceKobo: number;
-  paymentsConnected: boolean;
-  accountNumber: string;
+  capabilities: ReturnType<typeof getWalletCapabilities>;
+  receivingAccountNumber: string | null;
+  nextEntriesCursor: LedgerCursor | null;
   hasPin: boolean;
   profile: {
     fullName: string;
     phone: string;
-    nin: string;
     address: string;
     gender: string;
     dob: string;
@@ -53,33 +57,14 @@ type EntryRow = {
   created_at: string | Date;
 };
 
-function paymentsConnected() {
-  return Boolean(process.env.PAYSTACK_SECRET_KEY?.trim());
-}
+type MoneyActionResult =
+  | { ok: true; entry: LedgerEntry }
+  | { ok: false; error: string };
 
 function hashPin(pin: string) {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(pin, salt, 32).toString("hex");
   return `${salt}:${hash}`;
-}
-
-function pinMatches(pin: string, stored: string) {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
-  const next = scryptSync(pin, salt, 32);
-  const prev = Buffer.from(hash, "hex");
-  if (next.length !== prev.length) return false;
-  return timingSafeEqual(next, prev);
-}
-
-function accountNumber(userId: string, phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("0")) return digits;
-  if (digits.length === 10) return `0${digits}`;
-  if (digits.length > 11) return `0${digits.slice(-10)}`;
-  let n = 0;
-  for (const c of userId) n = (n * 33 + c.charCodeAt(0)) >>> 0;
-  return String(n % 1_000_000_0000).padStart(10, "0");
 }
 
 function mapEntry(row: EntryRow): LedgerEntry {
@@ -106,13 +91,12 @@ async function readWallet(userId: string): Promise<WalletView> {
   const profiles = await sql<{
     full_name: string;
     phone: string;
-    nin: string;
     address: string;
     gender: string;
     dob: string;
     pin_hash: string | null;
   }>`
-    select full_name, phone, nin, address, gender, dob, pin_hash
+    select full_name, phone, address, gender, dob, pin_hash
     from profiles where user_id = ${userId}
   `;
   const profile = profiles[0];
@@ -123,9 +107,12 @@ async function readWallet(userId: string): Promise<WalletView> {
     select id, amount_kobo, kind, title, meta, counterparty, bank_name, reference, created_at
     from ledger_entries
     where user_id = ${userId}
-    order by created_at desc
-    limit 50
+    order by created_at desc, id desc
+    limit ${TRANSACTION_PAGE_SIZE + 1}
   `;
+  const hasMoreEntries = entries.length > TRANSACTION_PAGE_SIZE;
+  const firstEntries = entries.slice(0, TRANSACTION_PAGE_SIZE);
+  const lastEntry = firstEntries[firstEntries.length - 1];
   const people = await sql<{
     id: string;
     name: string;
@@ -140,18 +127,27 @@ async function readWallet(userId: string): Promise<WalletView> {
   `;
   return {
     balanceKobo: Number(sums[0]?.bal ?? 0),
-    paymentsConnected: paymentsConnected(),
-    accountNumber: accountNumber(userId, profile?.phone ?? ""),
+    capabilities: getWalletCapabilities(process.env.PAYSTACK_SECRET_KEY),
+    receivingAccountNumber: null,
+    nextEntriesCursor:
+      hasMoreEntries && lastEntry
+        ? {
+            createdAt:
+              lastEntry.created_at instanceof Date
+                ? lastEntry.created_at.toISOString()
+                : new Date(lastEntry.created_at).toISOString(),
+            id: lastEntry.id,
+          }
+        : null,
     hasPin: Boolean(profile?.pin_hash),
     profile: {
       fullName: profile?.full_name ?? "",
       phone: profile?.phone ?? "",
-      nin: profile?.nin ?? "",
       address: profile?.address ?? "",
       gender: profile?.gender ?? "",
       dob: profile?.dob ?? "",
     },
-    entries: entries.map(mapEntry),
+    entries: firstEntries.map(mapEntry),
     beneficiaries: people.map((p) => ({
       id: p.id,
       name: p.name,
@@ -166,13 +162,49 @@ export const getWallet = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => readWallet(context.userId));
 
+export const getTransactionPage = createServerFn({ method: "POST" })
+  .validator((input: unknown) => {
+    const cursor = (input as { cursor?: unknown } | null)?.cursor;
+    return { cursor: parseLedgerCursor(cursor) };
+  })
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const cursor = data.cursor;
+    const rows = await sql<EntryRow>`
+      select id, amount_kobo, kind, title, meta, counterparty, bank_name, reference, created_at
+      from ledger_entries
+      where user_id = ${context.userId}
+        and (
+          ${cursor === null}
+          or (created_at, id) < (${cursor?.createdAt ?? null}::timestamptz, ${cursor?.id ?? null})
+        )
+      order by created_at desc, id desc
+      limit ${TRANSACTION_PAGE_SIZE + 1}
+    `;
+    const page = rows.slice(0, TRANSACTION_PAGE_SIZE);
+    const last = page[page.length - 1];
+    return {
+      entries: page.map(mapEntry),
+      nextCursor:
+        rows.length > TRANSACTION_PAGE_SIZE && last
+          ? {
+              createdAt:
+                last.created_at instanceof Date
+                  ? last.created_at.toISOString()
+                  : new Date(last.created_at).toISOString(),
+              id: last.id,
+            }
+          : null,
+    };
+  });
+
 const profileInput = (input: unknown) => {
   const v = (input ?? {}) as Record<string, unknown>;
   const text = (key: string, max: number) => String(v[key] ?? "").trim().slice(0, max);
   return {
     fullName: text("fullName", 80),
     phone: text("phone", 16).replace(/\D/g, "").slice(0, 11),
-    nin: text("nin", 11).replace(/\D/g, "").slice(0, 11),
     address: text("address", 160),
     gender: text("gender", 16),
     dob: text("dob", 16),
@@ -185,12 +217,11 @@ export const saveProfile = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     await sql`
-      insert into profiles (user_id, full_name, phone, nin, address, gender, dob)
-      values (${context.userId}, ${data.fullName}, ${data.phone}, ${data.nin}, ${data.address}, ${data.gender}, ${data.dob})
+      insert into profiles (user_id, full_name, phone, address, gender, dob)
+      values (${context.userId}, ${data.fullName}, ${data.phone}, ${data.address}, ${data.gender}, ${data.dob})
       on conflict (user_id) do update set
         full_name = excluded.full_name,
         phone = excluded.phone,
-        nin = excluded.nin,
         address = excluded.address,
         gender = excluded.gender,
         dob = excluded.dob
@@ -207,15 +238,14 @@ export const setPin = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const rows = await sql<{ pin_hash: string | null }>`
-      select pin_hash from profiles where user_id = ${context.userId}
-    `;
-    if (rows[0]?.pin_hash) return { ok: false as const, error: "A PIN is already set." };
-    await sql`
+    const rows = await sql<{ user_id: string }>`
       insert into profiles (user_id, pin_hash)
       values (${context.userId}, ${hashPin(data.pin)})
       on conflict (user_id) do update set pin_hash = excluded.pin_hash
+      where profiles.pin_hash is null
+      returning user_id
     `;
+    if (!rows[0]) return { ok: false as const, error: "A PIN is already set." };
     return { ok: true as const };
   });
 
@@ -230,6 +260,9 @@ export const resolveAccount = createServerFn({ method: "POST" })
   })
   .middleware([authMiddleware])
   .handler(async ({ data }) => {
+    if (!getWalletCapabilities(process.env.PAYSTACK_SECRET_KEY).bankTransfers) {
+      return { ok: false as const, reason: "not_connected" as const };
+    }
     const bank = findBank(data.bankId);
     if (!bank) return { ok: false as const, reason: "unknown_bank" as const };
     const key = process.env.PAYSTACK_SECRET_KEY?.trim();
@@ -243,19 +276,7 @@ export const resolveAccount = createServerFn({ method: "POST" })
     return { ok: true as const, accountName: name };
   });
 
-type DebitInput = {
-  amountNaira: number;
-  pin: string;
-  idempotencyKey: string;
-  title: string;
-  kind: string;
-  meta: string;
-  counterparty: string;
-  bankName: string;
-  saveBeneficiary?: { name: string; bankId: string; accountNumber: string } | null;
-};
-
-function debitInput(input: unknown, kind: string, title: string): DebitInput {
+function debitInput(input: unknown) {
   const v = (input ?? {}) as Record<string, unknown>;
   const amountNaira = Number(v.amountNaira);
   const pin = String(v.pin ?? "").replace(/\D/g, "");
@@ -263,118 +284,51 @@ function debitInput(input: unknown, kind: string, title: string): DebitInput {
   if (!Number.isFinite(amountNaira) || amountNaira < 100) throw new Error("Enter at least ₦100.");
   if (pin.length !== 4) throw new Error("Enter your 4-digit PIN.");
   if (idempotencyKey.length < 8) throw new Error("Missing payment reference.");
-  return {
-    amountNaira: Math.round(amountNaira),
-    pin,
-    idempotencyKey,
-    title,
-    kind,
-    meta: String(v.meta ?? "").slice(0, 120),
-    counterparty: String(v.counterparty ?? "").slice(0, 80),
-    bankName: String(v.bankName ?? "").slice(0, 80),
-    saveBeneficiary: null,
-  };
-}
-
-async function postDebit(userId: string, input: DebitInput) {
-  const sql = await getSql();
-  const profiles = await sql<{ pin_hash: string | null }>`
-    select pin_hash from profiles where user_id = ${userId}
-  `;
-  const stored = profiles[0]?.pin_hash;
-  if (!stored) return { ok: false as const, error: "Create your transaction PIN first." };
-  if (!pinMatches(input.pin, stored)) return { ok: false as const, error: "That PIN is not correct." };
-
-  const amountKobo = input.amountNaira * 100;
-  const reference = `idem:${input.idempotencyKey}`;
-  const existing = await sql<EntryRow>`
-    select id, amount_kobo, kind, title, meta, counterparty, bank_name, reference, created_at
-    from ledger_entries where user_id = ${userId} and reference = ${reference}
-  `;
-  if (existing[0]) return { ok: true as const, entry: mapEntry(existing[0]) };
-
-  const id = crypto.randomUUID();
-  const inserted = await sql<EntryRow>`
-    insert into ledger_entries (id, user_id, amount_kobo, kind, title, meta, counterparty, bank_name, reference)
-    select ${id}, ${userId}, ${-amountKobo}, ${input.kind}, ${input.title}, ${input.meta}, ${input.counterparty}, ${input.bankName}, ${reference}
-    where (
-      select coalesce(sum(amount_kobo), 0) from ledger_entries where user_id = ${userId}
-    ) >= ${amountKobo}
-    and not exists (
-      select 1 from ledger_entries where user_id = ${userId} and reference = ${reference}
-    )
-    returning id, amount_kobo, kind, title, meta, counterparty, bank_name, reference, created_at
-  `;
-  if (!inserted[0]) return { ok: false as const, error: "Your balance is not enough for this payment." };
-
-  if (input.saveBeneficiary) {
-    const b = input.saveBeneficiary;
-    await sql`
-      insert into beneficiaries (id, user_id, name, bank_id, bank_name, account_number)
-      values (${crypto.randomUUID()}, ${userId}, ${b.name}, ${b.bankId}, ${input.bankName}, ${b.accountNumber})
-      on conflict (user_id, bank_id, account_number) do nothing
-    `;
-  }
-  return { ok: true as const, entry: mapEntry(inserted[0]) };
+  return { amountNaira: Math.round(amountNaira) };
 }
 
 export const transfer = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
-    const base = debitInput(input, "send", "Money Sent");
+    const { amountNaira } = debitInput(input);
     const v = input as { accountNumber?: string; bankId?: string; accountName?: string; narration?: string };
     const accountNumber = String(v.accountNumber ?? "").replace(/\D/g, "");
     const bank = findBank(String(v.bankId ?? ""));
     const accountName = String(v.accountName ?? "").trim().slice(0, 80);
     if (accountNumber.length !== 10 || !bank) throw new Error("Enter the account number and bank.");
     if (accountName.length < 3) throw new Error("Enter the account name.");
-    return {
-      ...base,
-      title: "Money Sent",
-      kind: "send",
-      meta: `${String(v.narration ?? "Transfer").slice(0, 60)} · ${bank.name}`,
-      counterparty: accountName,
-      bankName: bank.name,
-      saveBeneficiary: { name: accountName, bankId: bank.id, accountNumber },
-    };
+    return { amountNaira };
   })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }) => postDebit(context.userId, data));
+  .handler(async (): Promise<MoneyActionResult> => ({
+    ok: false as const,
+    error: "Bank transfers are not enabled. No money has been sent or debited.",
+  }));
 
 export const buyAirtime = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
-    const base = debitInput(input, "airtime", "Airtime Purchase");
+    const { amountNaira } = debitInput(input);
     const v = input as { network?: string; phone?: string };
     const network = String(v.network ?? "").slice(0, 20);
     const phone = String(v.phone ?? "").replace(/\D/g, "").slice(0, 11);
     if (!network || phone.length < 11) throw new Error("Enter the network and an 11-digit number.");
-    return {
-      ...base,
-      title: "Airtime Purchase",
-      kind: "airtime",
-      meta: `Just now · ${network}`,
-      counterparty: `${network} · ${phone}`,
-      bankName: network,
-    };
+    return { amountNaira };
   })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }) => postDebit(context.userId, data));
+  .handler(async (): Promise<MoneyActionResult> => ({
+    ok: false as const,
+    error: "Airtime purchases are not connected. Your wallet has not been debited.",
+  }));
 
 export const payBill = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
-    const base = debitInput(input, "bill", "Bill Payment");
-    const v = input as { service?: string };
-    const service = String(v.service ?? "Bill").slice(0, 40);
-    return {
-      ...base,
-      title: service,
-      kind: "bill",
-      meta: `Just now · ${service}`,
-      counterparty: service,
-      bankName: "Nakconel",
-    };
+    debitInput(input);
+    return {};
   })
   .middleware([authMiddleware])
-  .handler(async ({ context, data }) => postDebit(context.userId, data));
+  .handler(async (): Promise<MoneyActionResult> => ({
+    ok: false as const,
+    error: "Bill payments are not connected. Your wallet has not been debited.",
+  }));
 
 export const startTopup = createServerFn({ method: "POST" })
   .validator((input: unknown) => {
@@ -452,9 +406,17 @@ export const confirmTopup = createServerFn({ method: "POST" })
     });
     const body = (await res.json().catch(() => null)) as {
       status?: boolean;
-      data?: { status?: string; amount?: number };
+      data?: { status?: string; amount?: number; currency?: string; reference?: string };
     } | null;
-    if (!res.ok || body?.data?.status !== "success" || Number(body.data.amount) !== Number(intent.amount_kobo)) {
+    if (
+      !res.ok ||
+      !body?.status ||
+      !body?.data ||
+      !isConfirmedTopup(
+        { reference: data.reference, amountKobo: Number(intent.amount_kobo) },
+        body.data,
+      )
+    ) {
       return { ok: false as const, error: "Paystack has not confirmed this payment." };
     }
     const id = crypto.randomUUID();
