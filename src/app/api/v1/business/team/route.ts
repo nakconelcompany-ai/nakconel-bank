@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { addTeamMember, listTeam, payTeamMember } from '@/domains/business/service';
+import { addTeamMember, listTeam } from '@/domains/business/service';
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,19 +17,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     if (body.action === 'pay') {
-      const parsed = z.object({
-        userId: z.string().uuid(),
-        teamMemberId: z.string().uuid(),
-        amount: z.number().positive().optional(),
-        period: z.string().optional(),
-      }).parse(body);
-      const data = await payTeamMember({
-        userId: parsed.userId,
-        teamMemberId: parsed.teamMemberId,
-        amountNaira: parsed.amount,
-        period: parsed.period,
-      });
-      return NextResponse.json({ success: true, phase: 2, data });
+      return NextResponse.json(
+        { success: false, error: 'Payroll transfers are unavailable until a licensed payment provider is connected.' },
+        { status: 503 }
+      );
     }
     const parsed = z.object({
       userId: z.string().uuid(),

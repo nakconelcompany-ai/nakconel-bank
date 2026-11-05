@@ -4,19 +4,16 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   apiIntlCorridors,
   apiIntlQuote,
-  apiIntlTransfer,
   apiListIntlTransfers,
   type IntlCorridor,
   type IntlQuote,
 } from '@/lib/api';
 
-type Step = 'corridors' | 'form' | 'confirm' | 'pin' | 'done';
+type Step = 'corridors' | 'form' | 'confirm';
 
 type Props = {
   userId: string;
-  accountId: string;
   onToast: (m: string) => void;
-  onBalanceRefresh?: () => void;
 };
 
 function formatNGN(n: number) {
@@ -27,13 +24,7 @@ function formatNGN(n: number) {
   }).format(n);
 }
 
-function uid() {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `id_${Date.now()}`;
-}
-
-export default function InternationalView({ userId, accountId, onToast, onBalanceRefresh }: Props) {
+export default function InternationalView({ userId, onToast }: Props) {
   const [step, setStep] = useState<Step>('corridors');
   const [corridors, setCorridors] = useState<IntlCorridor[]>([]);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof apiListIntlTransfers>>>([]);
@@ -47,15 +38,6 @@ export default function InternationalView({ userId, accountId, onToast, onBalanc
   const [benBank, setBenBank] = useState('');
   const [note, setNote] = useState('');
   const [quote, setQuote] = useState<IntlQuote | null>(null);
-  const [pin, setPin] = useState('');
-  const [pinError, setPinError] = useState('');
-  const [result, setResult] = useState<{
-    amountForeign: number;
-    currency: string;
-    beneficiaryName: string;
-    country: string;
-    totalDebitNgn: number;
-  } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -109,92 +91,12 @@ export default function InternationalView({ userId, accountId, onToast, onBalanc
     }
   };
 
-  const submitPin = async () => {
-    if (!quote || !corridor || !/^\d{4}$/.test(pin)) {
-      setPinError('Enter your 4-digit PIN');
-      return;
-    }
-    setLoading(true);
-    setPinError('');
-    try {
-      const t = await apiIntlTransfer({
-        userId,
-        fromAccountId: accountId,
-        corridorId: corridor.id,
-        countryCode,
-        amountNgn: quote.amountNgn,
-        beneficiaryName: benName.trim(),
-        beneficiaryAccount: benAccount.trim(),
-        beneficiaryBank: benBank.trim() || undefined,
-        note: note.trim() || undefined,
-        pin,
-        idempotencyKey: uid(),
-      });
-      setResult({
-        amountForeign: t.amountForeign,
-        currency: t.currency,
-        beneficiaryName: t.beneficiaryName,
-        country: t.country,
-        totalDebitNgn: t.totalDebitNgn,
-      });
-      setStep('done');
-      onToast('International transfer submitted');
-      onBalanceRefresh?.();
-      load();
-    } catch (e: unknown) {
-      setPinError(e instanceof Error ? e.message : 'Transfer failed');
-      setPin('');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const reset = () => {
-    setStep('corridors');
-    setCorridor(null);
-    setCountryCode('');
-    setAmount('');
-    setBenName('');
-    setBenAccount('');
-    setBenBank('');
-    setNote('');
-    setQuote(null);
-    setPin('');
-    setPinError('');
-    setResult(null);
-  };
-
-  if (step === 'done' && result) {
-    return (
-      <div style={{ paddingBottom: 28, textAlign: 'center' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', margin: '24px auto 16px', background: 'rgba(95,212,146,0.16)', border: '1px solid rgba(95,212,146,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>✓</div>
-        <h2 style={{ color: '#f0d78c', fontSize: 22 }}>Transfer sent</h2>
-        <p style={{ color: 'rgba(247,236,212,0.55)', marginTop: 8, fontSize: 14 }}>{result.amountForeign} {result.currency} → {result.beneficiaryName}</p>
-        <p style={{ color: 'rgba(247,236,212,0.4)', marginTop: 4, fontSize: 12 }}>Debited {formatNGN(result.totalDebitNgn)} · {result.country}</p>
-        <button type="button" className="btn-gold" style={{ marginTop: 24 }} onClick={reset}>Send another</button>
-      </div>
-    );
-  }
-
-  if (step === 'pin') {
-    return (
-      <div style={{ paddingBottom: 28, textAlign: 'center' }}>
-        <button type="button" className="btn-ghost" style={{ marginBottom: 12 }} onClick={() => setStep('confirm')}>← Back</button>
-        <h2 className="page-title" style={{ textAlign: 'center' }}>Enter PIN</h2>
-        <p className="page-sub" style={{ textAlign: 'center' }}>Confirm international transfer</p>
-        <input className="input" type="password" inputMode="numeric" maxLength={4} placeholder="••••" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} style={{ letterSpacing: 12, textAlign: 'center', fontSize: 24, maxWidth: 180, margin: '16px auto' }} />
-        {pinError ? <p style={{ color: '#ef7a7a', fontSize: 13 }}>{pinError}</p> : null}
-        <button type="button" className="btn-gold" style={{ marginTop: 12 }} disabled={loading || pin.length !== 4} onClick={submitPin}>{loading ? 'Sending…' : 'Confirm & send'}</button>
-      </div>
-    );
-  }
-
   if (step === 'confirm' && quote) {
     return (
       <div style={{ paddingBottom: 28 }}>
         <button type="button" className="btn-ghost" style={{ marginBottom: 12 }} onClick={() => setStep('form')}>← Edit</button>
         <h2 className="page-title">Confirm transfer</h2>
-        <p className="page-sub">Review FX and fees before PIN</p>
+        <p className="page-sub">Indicative estimate only — no international payments are connected</p>
         <div className="glass" style={{ padding: 18 }}>
           <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)' }}>Recipient gets</p>
           <p style={{ fontSize: 28, fontWeight: 700, color: '#f0d78c', marginTop: 4 }}>{quote.amountForeign} {quote.currency}</p>
@@ -206,7 +108,9 @@ export default function InternationalView({ userId, accountId, onToast, onBalanc
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, marginTop: 8, fontWeight: 700 }}><span style={{ color: 'rgba(247,236,212,0.55)' }}>Total debit</span><span style={{ color: '#f0d78c' }}>{formatNGN(quote.totalDebitNgn)}</span></div>
           <p style={{ fontSize: 11, color: 'rgba(247,236,212,0.4)', marginTop: 12, lineHeight: 1.5 }}>{quote.settlementNote}</p>
         </div>
-        <button type="button" className="btn-gold" style={{ marginTop: 18 }} onClick={() => { setPin(''); setStep('pin'); }}>Enter PIN to send</button>
+        <div role="status" style={{ background: 'rgba(240,215,140,0.1)', border: '1px solid rgba(240,215,140,0.32)', borderRadius: 16, color: '#f0d78c', fontSize: 13, lineHeight: 1.6, marginTop: 18, padding: 14 }}>
+          International transfers are unavailable until a licensed payment provider is connected. This estimate is not a payment offer, and no money will be moved.
+        </div>
       </div>
     );
   }
@@ -241,6 +145,9 @@ export default function InternationalView({ userId, accountId, onToast, onBalanc
     <div style={{ paddingBottom: 28 }}>
       <h2 className="page-title">Send abroad</h2>
       <p className="page-sub">Nigeria → Africa, UK, US, GCC & Europe</p>
+      <div role="status" style={{ background: 'rgba(240,215,140,0.1)', border: '1px solid rgba(240,215,140,0.32)', borderRadius: 16, color: '#f0d78c', fontSize: 13, lineHeight: 1.6, marginBottom: 16, padding: 14 }}>
+        International transfers are not available yet. Any shown rates are indicative demo estimates only; no money will be moved.
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
         {corridors.map((c) => (
           <button key={c.id} type="button" className="glass" onClick={() => pickCorridor(c)} style={{ padding: 16, textAlign: 'left', cursor: 'pointer', border: '1px solid rgba(212,175,55,0.2)', display: 'flex', alignItems: 'center', gap: 14 }}>

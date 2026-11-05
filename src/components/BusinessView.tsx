@@ -8,15 +8,12 @@ import {
   apiBizProfile,
   apiCreateInvoice,
   apiListInvoices,
-  apiCreatePaymentLink,
   apiListPaymentLinks,
   apiListCollections,
-  apiRecordCollection,
   apiCreateExpense,
   apiListExpenses,
   apiAddTeamMember,
   apiListTeam,
-  apiPayTeamMember,
 } from '@/lib/api';
 
 type Tab = 'overview' | 'invoices' | 'links' | 'collections' | 'expenses' | 'team';
@@ -27,7 +24,7 @@ function formatNGN(n: number) {
 
 function StatusPill({ status }: { status: string }) {
   const s = status.toUpperCase();
-  const paid = s === 'PAID' || s === 'COMPLETED' || s === 'ACTIVE';
+  const paid = s === 'COMPLETED' || s === 'ACTIVE';
   const warn = s === 'UNPAID' || s === 'SENT' || s === 'OVERDUE' || s === 'PENDING';
   const bg = paid ? 'rgba(95,212,146,0.15)' : warn ? 'rgba(240,215,140,0.12)' : 'rgba(255,255,255,0.06)';
   const color = paid ? '#5fd492' : warn ? '#f0d78c' : 'rgba(247,236,212,0.55)';
@@ -44,7 +41,7 @@ function StatusPill({ status }: { status: string }) {
         textTransform: 'uppercase',
       }}
     >
-      {status}
+      {s === 'PAID' ? 'RECORDED · UNVERIFIED' : status}
     </span>
   );
 }
@@ -72,8 +69,6 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
   const [invAmount, setInvAmount] = useState('');
   const [invDesc, setInvDesc] = useState('');
   const [invPreview, setInvPreview] = useState(false);
-  const [linkTitle, setLinkTitle] = useState('');
-  const [linkAmount, setLinkAmount] = useState('');
   const [expTitle, setExpTitle] = useState('');
   const [expAmount, setExpAmount] = useState('');
   const [expCategory, setExpCategory] = useState('OTHER');
@@ -145,9 +140,9 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
       </div>
 
       <div className="glass" style={{ padding: 14, marginTop: 14 }}>
-        <p style={{ fontWeight: 600, fontSize: 13 }}>Try the interactive demo</p>
+        <p style={{ fontWeight: 600, fontSize: 13 }}>Business records only</p>
         <p style={{ color: 'rgba(247,236,212,0.5)', fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>
-          Explore sample invoices, links, expenses, and team tools. Demo changes are temporary and never affect your saved business records.
+          Saved invoices, expenses, and team records do not move funds. Payment links and payroll are unavailable until payment providers are connected. Try simulated workflows separately in the demo.
         </p>
         <button type="button" className="btn-ghost" onClick={() => setShowDemo(true)} style={{ marginTop: 10 }}>
           Explore business demo
@@ -179,7 +174,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
             <div className="glass" style={{ padding: 16 }}>
-              <p className="field-label" style={{ marginBottom: 0 }}>COLLECTED</p>
+              <p className="field-label" style={{ marginBottom: 0 }}>RECORDED INFLOWS · UNVERIFIED</p>
               <p style={{ fontSize: 20, fontWeight: 700, color: '#5fd492', marginTop: 8 }}>
                 {formatNGN(analytics?.totalCollected || 0)}
               </p>
@@ -191,7 +186,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
               </p>
             </div>
             <div className="glass" style={{ padding: 16 }}>
-              <p className="field-label" style={{ marginBottom: 0 }}>NET</p>
+              <p className="field-label" style={{ marginBottom: 0 }}>NET RECORDED · UNVERIFIED</p>
               <p style={{ fontSize: 20, fontWeight: 700, color: (analytics?.net || 0) >= 0 ? '#5fd492' : '#e07070', marginTop: 8 }}>
                 {formatNGN(analytics?.net || 0)}
               </p>
@@ -229,7 +224,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
           <div className="glass" style={{ padding: 16, marginBottom: 14 }}>
             <p style={{ fontWeight: 600, marginBottom: 6 }}>New invoice</p>
             <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginBottom: 14, lineHeight: 1.5 }}>
-              Bill a customer. When they pay, tap <strong style={{ color: '#f0d78c' }}>Mark paid</strong> to record the inflow.
+              Invoices are records only. Payment receipts cannot be confirmed in Nakconel until a payment provider is connected.
             </p>
             {!invPreview ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -317,28 +312,6 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
                     <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginTop: 4 }}>{inv.customerName}</div>
                     <div style={{ fontWeight: 700, color: '#f0d78c', marginTop: 6 }}>{formatNGN(inv.amount)}</div>
                   </div>
-                  {inv.status !== 'PAID' && (
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      style={{ padding: '8px 12px', fontSize: 11, flexShrink: 0 }}
-                      disabled={loading}
-                      onClick={() =>
-                        run(async () => {
-                          await apiRecordCollection({
-                            userId,
-                            source: 'INVOICE',
-                            sourceId: inv.id,
-                            amount: inv.amount,
-                            payerName: inv.customerName,
-                          });
-                          onToast(`${inv.invoiceNumber} marked paid`);
-                        })
-                      }
-                    >
-                      Mark paid
-                    </button>
-                  )}
                 </div>
               ))
             )}
@@ -349,32 +322,10 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
       {tab === 'links' && (
         <>
           <div className="glass" style={{ padding: 16, marginBottom: 14 }}>
-            <p style={{ fontWeight: 600, marginBottom: 12 }}>New payment link</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input className="input" placeholder="Title e.g. Product deposit" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} />
-              <input className="input" placeholder="Fixed amount (optional)" inputMode="decimal" value={linkAmount} onChange={(e) => setLinkAmount(e.target.value)} />
-              <button
-                type="button"
-                className="btn-gold"
-                disabled={loading}
-                onClick={() =>
-                  run(async () => {
-                    if (!linkTitle) throw new Error('Title required');
-                    const data = await apiCreatePaymentLink({
-                      userId,
-                      title: linkTitle,
-                      amount: linkAmount ? parseFloat(linkAmount) : undefined,
-                    });
-                    setLinkTitle('');
-                    setLinkAmount('');
-                    onToast('Link created');
-                    if (data?.url) navigator.clipboard?.writeText(data.url);
-                  })
-                }
-              >
-                Create & copy link
-              </button>
-            </div>
+            <p style={{ fontWeight: 600, marginBottom: 6 }}>Payment links unavailable</p>
+            <p style={{ color: 'rgba(247,236,212,0.5)', fontSize: 12, lineHeight: 1.5 }}>
+              Payment collection is not connected. Use the separate demo to preview simulated payment-link workflows.
+            </p>
           </div>
           <div className="glass" style={{ padding: '4px 16px' }}>
             {links.length === 0 ? (
@@ -384,32 +335,12 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
                 <div key={lk.id} className="tx-row">
                   <div>
                     <div style={{ fontWeight: 600 }}>{lk.title}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(247,236,212,0.45)', marginTop: 2, wordBreak: 'break-all' }}>
-                      {lk.url} · {lk.collectCount} pays
+                    <div style={{ fontSize: 11, color: 'rgba(247,236,212,0.45)', marginTop: 2 }}>
+                      Saved record · payment processing unavailable
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                     <div style={{ fontWeight: 700, color: '#f0d78c' }}>{lk.amount != null ? formatNGN(lk.amount) : 'Open'}</div>
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      style={{ padding: '6px 10px', fontSize: 11 }}
-                      disabled={loading}
-                      onClick={() =>
-                        run(async () => {
-                          await apiRecordCollection({
-                            userId,
-                            source: 'PAYMENT_LINK',
-                            sourceId: lk.id,
-                            amount: lk.amount || 1000,
-                            payerName: 'Link payer',
-                          });
-                          onToast('Payment simulated');
-                        })
-                      }
-                    >
-                      Simulate pay
-                    </button>
                   </div>
                 </div>
               ))
@@ -422,7 +353,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
         <div className="glass" style={{ padding: '4px 16px' }}>
           {collections.length === 0 ? (
             <p style={{ color: 'rgba(247,236,212,0.45)', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
-              No collections yet — mark invoices paid or use payment links
+              No bookkeeping records yet — record externally settled invoice payments here
             </p>
           ) : (
             collections.map((c) => (
@@ -490,6 +421,9 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
 
       {tab === 'team' && (
         <>
+          <div className="glass" style={{ padding: 14, marginBottom: 14, color: 'rgba(247,236,212,0.6)', fontSize: 12, lineHeight: 1.5 }}>
+            Payroll transfers are unavailable until a licensed payment provider is connected. Adding team records does not initiate payments.
+          </div>
           <div className="glass" style={{ padding: 16, marginBottom: 14 }}>
             <p style={{ fontWeight: 600, marginBottom: 12 }}>Add team member</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -527,20 +461,6 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
                       {m.role} · {formatNGN(m.salary)}/mo
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    style={{ padding: '8px 12px', fontSize: 12 }}
-                    disabled={loading || m.salary <= 0}
-                    onClick={() =>
-                      run(async () => {
-                        await apiPayTeamMember({ userId, teamMemberId: m.id });
-                        onToast(`Paid ${m.fullName}`);
-                      })
-                    }
-                  >
-                    Pay
-                  </button>
                 </div>
               ))
             )}

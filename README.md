@@ -12,6 +12,10 @@ npx prisma db push
 npm run dev
 ```
 
+`npm run build` does not change the database schema. Use `npm run db:push`
+explicitly for local setup or controlled schema updates; do not run it against
+Production as part of a Preview build.
+
 Health: http://localhost:3000/api/v1/health
 
 ## Business demo

@@ -1,6 +1,4 @@
 import { prisma } from '@/lib/prisma';
-import { getAccountBalanceKobo, postJournal } from '@/domains/ledger/service';
-import { writeAudit } from '@/lib/audit';
 
 export type CorridorId = 'AFRICA' | 'UK' | 'US' | 'GCC' | 'EUROPE';
 
@@ -148,113 +146,8 @@ export function quoteInternational(input: {
   };
 }
 
-export async function createInternationalTransfer(input: {
-  userId: string;
-  fromAccountId: string;
-  corridorId: string;
-  countryCode: string;
-  amountNgn: number;
-  beneficiaryName: string;
-  beneficiaryAccount: string;
-  beneficiaryBank?: string;
-  note?: string;
-  idempotencyKey: string;
-  pinVerified: boolean;
-}) {
-  if (!input.pinVerified) throw new Error('PIN required');
-
-  const quote = quoteInternational({
-    corridorId: input.corridorId,
-    countryCode: input.countryCode,
-    amountNgn: input.amountNgn,
-  });
-
-  const account = await prisma.account.findFirst({
-    where: { id: input.fromAccountId, userId: input.userId },
-  });
-  if (!account) throw new Error('Account not found');
-
-  const amountKobo = Math.round(quote.amountNgn * 100);
-  const feeKobo = Math.round(quote.feeNgn * 100);
-  const totalKobo = amountKobo + feeKobo;
-
-  const balance = await getAccountBalanceKobo(input.fromAccountId);
-  if (balance < totalKobo) throw new Error('Insufficient balance');
-
-  const transfer = await prisma.$transaction(async (tx) => {
-    const t = await tx.internationalTransfer.create({
-      data: {
-        userId: input.userId,
-        fromAccountId: input.fromAccountId,
-        corridor: quote.corridorId,
-        destinationCountry: quote.countryCode,
-        destinationCurrency: quote.currency,
-        amountNgnKobo: amountKobo,
-        feeKobo,
-        fxRate: quote.fxRate,
-        amountForeign: quote.amountForeign,
-        beneficiaryName: input.beneficiaryName,
-        beneficiaryAccount: input.beneficiaryAccount,
-        beneficiaryBank: input.beneficiaryBank || null,
-        note: input.note || null,
-        status: 'PROCESSING',
-        settlementNote: quote.settlementNote,
-        idempotencyKey: input.idempotencyKey,
-      },
-    });
-
-    const journal = await postJournal({
-      description: `Intl ${quote.corridorLabel} → ${quote.countryName} (${quote.currency})`,
-      entries: [
-        {
-          debitAccountId: input.fromAccountId,
-          creditAccountId: `intl:${quote.corridorId}:${input.beneficiaryAccount}`,
-          amount: amountKobo,
-          reference: t.id,
-        },
-        {
-          debitAccountId: input.fromAccountId,
-          creditAccountId: 'fee:nakconel-intl',
-          amount: feeKobo,
-          reference: `${t.id}-fee`,
-        },
-      ],
-    });
-
-    return tx.internationalTransfer.update({
-      where: { id: t.id },
-      data: { status: 'COMPLETED', journalId: journal.id },
-    });
-  });
-
-  await writeAudit({
-    userId: input.userId,
-    action: 'INTL_TRANSFER',
-    resource: 'international_transfer',
-    resourceId: transfer.id,
-    meta: {
-      corridor: quote.corridorId,
-      country: quote.countryCode,
-      amountNgn: quote.amountNgn,
-      currency: quote.currency,
-    },
-  });
-
-  return {
-    id: transfer.id,
-    status: transfer.status,
-    corridor: transfer.corridor,
-    country: transfer.destinationCountry,
-    currency: transfer.destinationCurrency,
-    amountNgn: quote.amountNgn,
-    feeNgn: quote.feeNgn,
-    totalDebitNgn: quote.totalDebitNgn,
-    fxRate: transfer.fxRate,
-    amountForeign: transfer.amountForeign,
-    beneficiaryName: transfer.beneficiaryName,
-    settlementNote: transfer.settlementNote,
-    createdAt: transfer.createdAt,
-  };
+export async function createInternationalTransfer(): Promise<never> {
+  throw new Error('International transfers are unavailable until a licensed payment provider is connected.');
 }
 
 export async function listInternationalTransfers(userId: string) {

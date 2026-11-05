@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { listCollections, recordCollection } from '@/domains/business/service';
+import { listCollections } from '@/domains/business/service';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,26 +12,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = z.object({
-      userId: z.string().uuid(),
-      source: z.enum(['INVOICE', 'PAYMENT_LINK', 'DIRECT']),
-      sourceId: z.string().optional(),
-      amount: z.number().positive(),
-      payerName: z.string().optional(),
-      payerEmail: z.string().email().optional(),
-    }).parse(await req.json());
-    const data = await recordCollection({
-      userId: body.userId,
-      source: body.source,
-      sourceId: body.sourceId,
-      amountNaira: body.amount,
-      payerName: body.payerName,
-      payerEmail: body.payerEmail,
-    });
-    return NextResponse.json({ success: true, phase: 2, data });
-  } catch (e: unknown) {
-    return NextResponse.json({ success: false, error: e instanceof Error ? e.message : 'Failed' }, { status: 400 });
-  }
+export async function POST() {
+  return NextResponse.json(
+    { success: false, error: 'Payment receipts cannot be confirmed until a licensed payment provider is connected.' },
+    { status: 503 }
+  );
 }

@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiBalance, apiLogin, apiRegister, apiTransfer, type Session } from '@/lib/api';
-import { NG_BANKS, resolveAccountName } from '@/lib/banks';
+import { apiBalance, apiLogin, apiRegister, type Session } from '@/lib/api';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
 import BusinessDemoView from '@/components/BusinessDemoView';
@@ -11,12 +10,11 @@ import InternationalView from '@/components/InternationalView';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconCard,
   IconHistory, IconUser, IconBiz, IconEye, IconEyeOff,
-  IconCheck, IconShield,
 } from '@/components/Icons';
 
 type View =
   | 'landing' | 'auth' | 'home' | 'send' | 'receive' | 'topup'
-  | 'history' | 'card' | 'kyc' | 'account' | 'pin' | 'success' | 'business' | 'business-demo' | 'international';
+  | 'history' | 'card' | 'kyc' | 'account' | 'business' | 'business-demo' | 'international';
 
 type Tx = {
   id: string;
@@ -28,7 +26,6 @@ type Tx = {
   status: string;
 };
 
-const FEE = 50;
 const SESSION_KEY = 'nakconel_session';
 
 function formatNGN(n: number) {
@@ -39,31 +36,14 @@ function formatNGN(n: number) {
   }).format(n);
 }
 
-function uid() {
-  return typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `id_${Date.now()}`;
-}
-
 export default function BankApp() {
   const [view, setView] = useState<View>('landing');
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const [session, setSession] = useState<Session | null>(null);
   const [balance, setBalance] = useState<{ formatted: string; balance: number } | null>(null);
-  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [showBal, setShowBal] = useState(true);
   const [txs, setTxs] = useState<Tx[]>([]);
-  const [pin, setPin] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [pendingAction, setPendingAction] = useState<null | (() => Promise<void>)>(null);
-
-  const [sendAmount, setSendAmount] = useState('');
-  const [sendBank, setSendBank] = useState('');
-  const [sendAccount, setSendAccount] = useState('');
-  const [sendName, setSendName] = useState('');
-  const [sendNote, setSendNote] = useState('');
-  const [nameEnquiryLoading, setNameEnquiryLoading] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -96,30 +76,6 @@ export default function BankApp() {
   useEffect(() => {
     if (session?.accountId) refreshBalance(session.accountId);
   }, [session, refreshBalance]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function run() {
-      const digits = sendAccount.replace(/\D/g, '');
-      if (digits.length === 10 && sendBank) {
-        setNameEnquiryLoading(true);
-        try {
-          const name = await resolveAccountName(sendBank, sendAccount);
-          if (!cancelled) setSendName(name || '');
-        } catch {
-          if (!cancelled) setSendName('');
-        } finally {
-          if (!cancelled) setNameEnquiryLoading(false);
-        }
-      } else {
-        setSendName('');
-      }
-    }
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [sendAccount, sendBank]);
 
   const persistSession = (s: Session) => {
     setSession(s);
@@ -282,11 +238,7 @@ export default function BankApp() {
     return shell(
       <InternationalView
         userId={session.id}
-        accountId={session.accountId || ''}
         onToast={showToast}
-        onBalanceRefresh={() => {
-          if (session.accountId) refreshBalance(session.accountId);
-        }}
       />,
       { nav: true }
     );
@@ -363,216 +315,14 @@ export default function BankApp() {
   }
 
   if (view === 'send' && session) {
-    const amt = parseFloat(sendAmount) || 0;
-    const total = amt + (amt > 0 ? FEE : 0);
     return shell(
       <div>
         <h2 style={{ marginBottom: 8 }}>Send money</h2>
-        <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)', marginBottom: 16 }}>To any Nigerian bank</p>
-        <label style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)' }}>Bank</label>
-        <select
-          value={sendBank}
-          onChange={(e) => setSendBank(e.target.value)}
-          style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 12, background: '#1a1814', color: '#f7ecd4', border: '1px solid rgba(247,236,212,0.15)' }}
-        >
-          <option value="">Select bank</option>
-          {NG_BANKS.map((b) => (
-            <option key={b.code} value={b.code}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-        <label style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)' }}>Account number</label>
-        <input
-          value={sendAccount}
-          onChange={(e) => setSendAccount(e.target.value.replace(/\D/g, '').slice(0, 10))}
-          placeholder="10 digits"
-          inputMode="numeric"
-          style={{ width: '100%', padding: 12, marginBottom: 8, borderRadius: 12, background: '#1a1814', color: '#f7ecd4', border: '1px solid rgba(247,236,212,0.15)' }}
-        />
-        {nameEnquiryLoading ? (
-          <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)' }}>Looking up name…</p>
-        ) : sendName ? (
-          <p style={{ fontSize: 13, color: '#5fd492', marginBottom: 12 }}>{sendName}</p>
-        ) : null}
-        <label style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)' }}>Amount (NGN)</label>
-        <input
-          value={sendAmount}
-          onChange={(e) => setSendAmount(e.target.value)}
-          placeholder="0.00"
-          inputMode="decimal"
-          style={{ width: '100%', padding: 12, marginBottom: 12, borderRadius: 12, background: '#1a1814', color: '#f7ecd4', border: '1px solid rgba(247,236,212,0.15)' }}
-        />
-        <label style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)' }}>Note (optional)</label>
-        <input
-          value={sendNote}
-          onChange={(e) => setSendNote(e.target.value)}
-          placeholder="What is this for?"
-          style={{ width: '100%', padding: 12, marginBottom: 16, borderRadius: 12, background: '#1a1814', color: '#f7ecd4', border: '1px solid rgba(247,236,212,0.15)' }}
-        />
-        {amt > 0 ? (
-          <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginBottom: 12 }}>
-            Fee ₦{FEE} · Total debit {formatNGN(total)}
-          </p>
-        ) : null}
-        <button
-          type="button"
-          disabled={loading || !sendName || amt <= 0 || !session.accountId}
-          onClick={() => {
-            setPendingAction(async () => {
-              if (!session.accountId) return;
-              await apiTransfer({
-                userId: session.id,
-                fromAccountId: session.accountId,
-                amount: amt,
-                beneficiaryName: sendName,
-                beneficiaryAccount: sendAccount,
-                note: sendNote || undefined,
-                pin,
-                idempotencyKey: uid(),
-              });
-              setTxs((t) => [
-                {
-                  id: uid(),
-                  type: 'send',
-                  title: sendName,
-                  amount: amt,
-                  fee: FEE,
-                  time: new Date().toISOString(),
-                  status: 'COMPLETED',
-                },
-                ...t,
-              ]);
-              setSuccessMsg(`Sent ${formatNGN(amt)} to ${sendName}`);
-              setSendAmount('');
-              setSendAccount('');
-              setSendName('');
-              setSendNote('');
-              setView('success');
-              refreshBalance(session.accountId);
-            });
-            setPin('');
-            setView('pin');
-          }}
-          style={{
-            width: '100%',
-            padding: 14,
-            borderRadius: 14,
-            background: '#f7ecd4',
-            color: '#0c0b09',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-            opacity: loading || !sendName || amt <= 0 ? 0.5 : 1,
-          }}
-        >
-          Continue
-        </button>
+        <div role="status" style={{ background: 'rgba(240,215,140,0.1)', border: '1px solid rgba(240,215,140,0.32)', borderRadius: 16, color: '#f0d78c', fontSize: 13, lineHeight: 1.6, padding: 16 }}>
+          Bank transfers are currently unavailable. No money will be moved. Transfers can be enabled after a licensed payment provider and settlement checks are in place.
+        </div>
       </div>,
       { nav: true }
-    );
-  }
-
-  if (view === 'pin' && session) {
-    return shell(
-      <div style={{ textAlign: 'center', paddingTop: 40 }}>
-        <h2>Enter PIN</h2>
-        <p style={{ color: 'rgba(247,236,212,0.5)', fontSize: 13, marginBottom: 16 }}>Confirm with your 4-digit PIN</p>
-        <input
-          type="password"
-          inputMode="numeric"
-          maxLength={4}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          placeholder="••••"
-          style={{
-            letterSpacing: 12,
-            textAlign: 'center',
-            fontSize: 24,
-            maxWidth: 160,
-            padding: 12,
-            borderRadius: 12,
-            background: '#1a1814',
-            color: '#f7ecd4',
-            border: '1px solid rgba(247,236,212,0.15)',
-          }}
-        />
-        <button
-          type="button"
-          disabled={loading || pin.length !== 4}
-          onClick={async () => {
-            if (!pendingAction) return;
-            setLoading(true);
-            try {
-              await pendingAction();
-            } catch (e: unknown) {
-              showToast(e instanceof Error ? e.message : 'Failed');
-              setView('send');
-            } finally {
-              setLoading(false);
-              setPendingAction(null);
-            }
-          }}
-          style={{
-            display: 'block',
-            width: '100%',
-            marginTop: 20,
-            padding: 14,
-            borderRadius: 14,
-            background: '#f7ecd4',
-            color: '#0c0b09',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          {loading ? 'Processing…' : 'Confirm'}
-        </button>
-        <button type="button" onClick={() => setView('send')} style={{ marginTop: 12, background: 'none', border: 'none', color: 'rgba(247,236,212,0.5)' }}>
-          Cancel
-        </button>
-      </div>
-    );
-  }
-
-  if (view === 'success') {
-    return shell(
-      <div style={{ textAlign: 'center', paddingTop: 48 }}>
-        <div
-          style={{
-            width: 72,
-            height: 72,
-            borderRadius: '50%',
-            margin: '0 auto 16px',
-            background: 'rgba(95,212,146,0.16)',
-            border: '1px solid rgba(95,212,146,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <IconCheck size={40} color="#5fd492" />
-        </div>
-        <h2 style={{ color: '#f0d78c' }}>Done</h2>
-        <p style={{ color: 'rgba(247,236,212,0.55)', marginTop: 8 }}>{successMsg}</p>
-        <button
-          type="button"
-          onClick={() => setView('home')}
-          style={{
-            marginTop: 24,
-            width: '100%',
-            padding: 14,
-            borderRadius: 14,
-            background: '#f7ecd4',
-            color: '#0c0b09',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          Back to home
-        </button>
-      </div>
     );
   }
 
@@ -580,12 +330,9 @@ export default function BankApp() {
     return shell(
       <div>
         <h2>Receive</h2>
-        <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)', marginBottom: 16 }}>Share your details</p>
+        <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)', marginBottom: 16 }}>No bank-issued receiving account is available yet.</p>
         <div style={{ background: 'rgba(247,236,212,0.05)', borderRadius: 14, padding: 16 }}>
-          <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)' }}>Account name</div>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>{session.fullName}</div>
-          <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)' }}>Account number</div>
-          <div style={{ fontWeight: 600 }}>{session.email}</div>
+          <div style={{ fontSize: 13, color: 'rgba(247,236,212,0.65)' }}>Your email is not a bank account number. Receiving funds is unavailable until an account provider is connected.</div>
         </div>
       </div>,
       { nav: true }
@@ -596,7 +343,7 @@ export default function BankApp() {
     return shell(
       <div>
         <h2>Top up</h2>
-        <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)' }}>Demo mode — use business collections or transfers to move funds.</p>
+        <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)' }}>Wallet top-ups are unavailable until a payment provider is connected. No funds can be added here.</p>
       </div>,
       { nav: true }
     );
