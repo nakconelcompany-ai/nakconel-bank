@@ -139,3 +139,21 @@ export function IconCopy({ size = 18, color = 'currentColor', className }: IconP
     </>
   ), className);
 }
+
+export function IconLandmark({ size = 22, color = 'currentColor', className }: IconProps) {
+  return wrap(size, color, (
+    <>
+      <path d="M3 9h18L12 4 3 9z" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18M4 18h16" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+    </>
+  ), className);
+}
+
+export function IconArrowRight({ size = 18, color = 'currentColor', className }: IconProps) {
+  return wrap(size, color, (
+    <>
+      <path d="M4 12h15" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="m13 6 6 6-6 6" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ), className);
+}

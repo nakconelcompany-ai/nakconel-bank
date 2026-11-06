@@ -13,7 +13,6 @@ export type Corridor = {
   id: CorridorId;
   label: string;
   subtitle: string;
-  flag: string;
   fxBase: number;
   feePct: number;
   feeMinNgn: number;
@@ -26,7 +25,6 @@ export const CORRIDORS: Corridor[] = [
     id: 'AFRICA',
     label: 'Africa',
     subtitle: 'Ghana, Kenya, South Africa & more',
-    flag: '🌍',
     fxBase: 15.2,
     feePct: 1.2,
     feeMinNgn: 500,
@@ -43,7 +41,6 @@ export const CORRIDORS: Corridor[] = [
     id: 'UK',
     label: 'United Kingdom',
     subtitle: 'GBP bank & wallet payouts',
-    flag: '🇬🇧',
     fxBase: 2100,
     feePct: 1.5,
     feeMinNgn: 1500,
@@ -54,7 +51,6 @@ export const CORRIDORS: Corridor[] = [
     id: 'US',
     label: 'United States',
     subtitle: 'USD ACH & wire partners',
-    flag: '🇺🇸',
     fxBase: 1650,
     feePct: 1.5,
     feeMinNgn: 2000,
@@ -65,7 +61,6 @@ export const CORRIDORS: Corridor[] = [
     id: 'GCC',
     label: 'GCC',
     subtitle: 'UAE, Saudi Arabia & Gulf',
-    flag: '🏜️',
     fxBase: 450,
     feePct: 1.8,
     feeMinNgn: 2000,
@@ -80,7 +75,6 @@ export const CORRIDORS: Corridor[] = [
     id: 'EUROPE',
     label: 'Europe',
     subtitle: 'Eurozone SEPA corridors',
-    flag: '🇪🇺',
     fxBase: 1780,
     feePct: 1.6,
     feeMinNgn: 1800,

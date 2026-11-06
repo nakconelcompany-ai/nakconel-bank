@@ -9,7 +9,6 @@ export async function GET() {
       id: c.id,
       label: c.label,
       subtitle: c.subtitle,
-      flag: c.flag,
       feePct: c.feePct,
       feeMinNgn: c.feeMinNgn,
       settlementDays: c.settlementDays,

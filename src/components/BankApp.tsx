@@ -8,7 +8,7 @@ import BusinessDemoView from '@/components/BusinessDemoView';
 import SignupFlow from '@/components/SignupFlow';
 import InternationalView from '@/components/InternationalView';
 import {
-  IconHome, IconSend, IconReceive, IconTopUp, IconCard,
+  IconHome, IconSend, IconReceive, IconTopUp, IconWorld, IconArrowRight,
   IconHistory, IconUser, IconBiz, IconEye, IconEyeOff,
 } from '@/components/Icons';
 
@@ -98,6 +98,15 @@ export default function BankApp() {
   };
 
   function shell(children: React.ReactNode, opts?: { nav?: boolean }) {
+    const navItems = [
+      ['home', 'Home', IconHome],
+      ['send', 'Send', IconSend],
+      ['business', 'Business', IconBiz],
+      ['international', 'Global', IconWorld],
+      ['account', 'Profile', IconUser],
+    ] as const;
+    const showNav = Boolean(opts?.nav && session);
+
     return (
       <div className="app-shell">
         {toast ? (
@@ -111,18 +120,40 @@ export default function BankApp() {
           </div>
           <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
         </header>
-        <main className={`app-content${opts?.nav && session ? '' : ' no-nav'}`}>{children}</main>
-        {opts?.nav && session ? (
+        <div className={`app-layout${showNav ? ' has-navigation' : ''}`}>
+          {showNav ? (
+            <aside className="desktop-sidebar">
+              <p className="sidebar-label">YOUR BANK</p>
+              <nav className="sidebar-nav" aria-label="Main navigation">
+                {navItems.map(([v, label, Icon]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setView(v)}
+                    className={`sidebar-link${view === v ? ' active' : ''}`}
+                    aria-current={view === v ? 'page' : undefined}
+                  >
+                    <Icon size={20} />
+                    <span>{label}</span>
+                    {view === v ? <span className="sidebar-current" /> : null}
+                  </button>
+                ))}
+              </nav>
+              <div className="sidebar-account">
+                <span className="sidebar-account-avatar">{session?.fullName.trim().charAt(0).toUpperCase()}</span>
+                <span className="sidebar-account-copy">
+                  <strong>{session?.fullName.split(' ')[0]}</strong>
+                  <small>Personal account</small>
+                </span>
+                <button type="button" className="sidebar-logout" onClick={logout}>Sign out</button>
+              </div>
+            </aside>
+          ) : null}
+          <main className={`app-content${showNav ? '' : ' no-nav'}`}>{children}</main>
+        </div>
+        {showNav ? (
           <nav className="bottom-nav" aria-label="Main navigation">
-            {(
-              [
-                ['home', 'Home', IconHome],
-                ['send', 'Send', IconSend],
-                ['business', 'Biz', IconBiz],
-                ['international', 'World', IconCard],
-                ['account', 'Me', IconUser],
-              ] as const
-            ).map(([v, label, Icon]) => (
+            {navItems.map(([v, label, Icon]) => (
               <button
                 key={v}
                 type="button"
@@ -131,7 +162,7 @@ export default function BankApp() {
                 aria-current={view === v ? 'page' : undefined}
               >
                 <span className="nav-icon-wrap"><Icon size={21} /></span>
-                {label}
+                {label === 'Business' ? 'Biz' : label === 'Global' ? 'World' : label === 'Profile' ? 'Me' : label}
               </button>
             ))}
           </nav>
@@ -259,14 +290,14 @@ export default function BankApp() {
           onClick={() => setView('business')}
           className="home-shortcut"
         >
-          <span><strong>Business banking</strong><br /><small>Manage invoices and expenses</small></span><span aria-hidden="true">→</span>
+          <span><strong>Business banking</strong><br /><small>Manage invoices and expenses</small></span><IconArrowRight size={19} />
         </button>
         <button
           type="button"
           onClick={() => setView('international')}
           className="home-shortcut"
         >
-          <span><strong>International</strong><br /><small>View indicative exchange estimates</small></span><span aria-hidden="true">→</span>
+          <span><strong>International</strong><br /><small>View indicative exchange estimates</small></span><IconArrowRight size={19} />
         </button>
         <h2 className="section-heading">Recent activity</h2>
         <section className="glass activity-card">

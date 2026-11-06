@@ -9,6 +9,24 @@ export type Session = {
   kycStatus?: string;
 };
 
+type ApiResponse<T> = {
+  success?: boolean;
+  data?: T;
+  error?: string;
+};
+
+async function readApiResponse<T>(res: Response): Promise<ApiResponse<T>> {
+  const body = await res.text();
+  try {
+    return JSON.parse(body) as ApiResponse<T>;
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Request failed with HTTP ${res.status}. Please try again.`);
+    }
+    throw new Error('The server returned an invalid response. Please try again.');
+  }
+}
+
 export async function apiRegister(body: {
   email: string;
   fullName: string;
@@ -21,7 +39,7 @@ export async function apiRegister(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await res.json();
+  const json = await readApiResponse<{ id: string; email: string; fullName: string; accountId?: string }>(res);
   if (!res.ok || !json.success) throw new Error(json.error || 'Registration failed');
   return json.data as { id: string; email: string; fullName: string; accountId?: string };
 }
@@ -32,7 +50,7 @@ export async function apiLogin(email: string, password: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  const json = await res.json();
+  const json = await readApiResponse<Session>(res);
   if (!res.ok || !json.success) throw new Error(json.error || 'Login failed');
   return json.data as Session;
 }
@@ -262,7 +280,6 @@ export type IntlCorridor = {
   id: string;
   label: string;
   subtitle: string;
-  flag: string;
   feePct: number;
   feeMinNgn: number;
   settlementDays: string;

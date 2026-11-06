@@ -8,6 +8,7 @@ import {
   type IntlCorridor,
   type IntlQuote,
 } from '@/lib/api';
+import { IconArrowRight, IconCard, IconLandmark, IconWorld } from '@/components/Icons';
 
 type Step = 'corridors' | 'form' | 'confirm';
 
@@ -22,6 +23,12 @@ function formatNGN(n: number) {
     currency: 'NGN',
     minimumFractionDigits: 2,
   }).format(n);
+}
+
+function CorridorIcon({ id }: { id: string }) {
+  if (id === 'AFRICA' || id === 'EUROPE') return <IconWorld size={22} />;
+  if (id === 'US') return <IconCard size={22} />;
+  return <IconLandmark size={22} />;
 }
 
 export default function InternationalView({ userId, onToast }: Props) {
@@ -40,12 +47,22 @@ export default function InternationalView({ userId, onToast }: Props) {
   const [quote, setQuote] = useState<IntlQuote | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      const [c, h] = await Promise.all([apiIntlCorridors(), apiListIntlTransfers(userId)]);
-      setCorridors(c);
-      setHistory(h);
-    } catch (e: unknown) {
-      onToast(e instanceof Error ? e.message : 'Could not load corridors');
+    const [corridorsResult, historyResult] = await Promise.allSettled([
+      apiIntlCorridors(),
+      apiListIntlTransfers(userId),
+    ]);
+
+    if (corridorsResult.status === 'fulfilled') {
+      setCorridors(corridorsResult.value);
+    } else {
+      onToast(corridorsResult.reason instanceof Error ? corridorsResult.reason.message : 'Could not load corridors');
+    }
+
+    if (historyResult.status === 'fulfilled') {
+      setHistory(historyResult.value);
+    } else {
+      setHistory([]);
+      onToast(historyResult.reason instanceof Error ? historyResult.reason.message : 'Could not load international history');
     }
   }, [userId, onToast]);
 
@@ -119,7 +136,7 @@ export default function InternationalView({ userId, onToast }: Props) {
     return (
       <div style={{ paddingBottom: 28 }}>
         <button type="button" className="btn-ghost" style={{ marginBottom: 12 }} onClick={() => setStep('corridors')}>← Corridors</button>
-        <h2 className="page-title">{corridor.flag} {corridor.label}</h2>
+        <h2 className="page-title corridor-title"><span className="corridor-icon"><CorridorIcon id={corridor.id} /></span>{corridor.label}</h2>
         <p className="page-sub">{corridor.subtitle}</p>
         <label className="field-label">Country</label>
         <select className="input" value={countryCode} onChange={(e) => { setCountryCode(e.target.value); setQuote(null); }} style={{ marginBottom: 12 }}>
@@ -150,14 +167,14 @@ export default function InternationalView({ userId, onToast }: Props) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
         {corridors.map((c) => (
-          <button key={c.id} type="button" className="glass" onClick={() => pickCorridor(c)} style={{ padding: 16, textAlign: 'left', cursor: 'pointer', border: '1px solid rgba(212,175,55,0.2)', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span style={{ fontSize: 28, width: 44, textAlign: 'center' }}>{c.flag}</span>
+          <button key={c.id} type="button" className="glass corridor-card" onClick={() => pickCorridor(c)}>
+            <span className="corridor-icon"><CorridorIcon id={c.id} /></span>
             <div style={{ flex: 1 }}>
               <p style={{ fontWeight: 700, color: '#f0d78c', fontSize: 15 }}>{c.label}</p>
               <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)', marginTop: 2 }}>{c.subtitle}</p>
               <p style={{ fontSize: 11, color: 'rgba(247,236,212,0.35)', marginTop: 4 }}>Fee from {c.feePct}% · {c.settlementDays}</p>
             </div>
-            <span style={{ color: '#d4af37', fontSize: 18 }}>›</span>
+            <IconArrowRight size={18} />
           </button>
         ))}
       </div>
