@@ -181,6 +181,7 @@ model Invoice {
   customerPhone  String?
   amount         Int      // kobo
   currency       String   @default("NGN")
+  paymentProvider String  @default("UNVERIFIED")
   description    String?
   status         InvoiceStatus @default(DRAFT)
   dueDate        DateTime?
@@ -230,10 +231,11 @@ model Collection {
   sourceId      String?
   amount        Int      // kobo
   currency      String   @default("NGN")
+  provider      String   @default("UNVERIFIED")
   payerName     String?
   payerEmail    String?
   reference     String   @unique
-  status        String   @default("COMPLETED")
+  status        String   @default("PENDING")
   createdAt     DateTime @default(now())
 
   @@index([businessId])

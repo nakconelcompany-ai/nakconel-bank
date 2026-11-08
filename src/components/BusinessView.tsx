@@ -10,6 +10,7 @@ import {
   apiListInvoices,
   apiListPaymentLinks,
   apiListCollections,
+  apiStartBusinessCollection,
   apiCreateExpense,
   apiListExpenses,
   apiAddTeamMember,
@@ -22,7 +23,7 @@ function formatNGN(n: number) {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 2 }).format(n);
 }
 
-function StatusPill({ status }: { status: string }) {
+function StatusPill({ status, verified = false }: { status: string; verified?: boolean }) {
   const s = status.toUpperCase();
   const paid = s === 'COMPLETED' || s === 'ACTIVE';
   const warn = s === 'UNPAID' || s === 'SENT' || s === 'OVERDUE' || s === 'PENDING';
@@ -41,19 +42,18 @@ function StatusPill({ status }: { status: string }) {
         textTransform: 'uppercase',
       }}
     >
-      {s === 'PAID' ? 'RECORDED · UNVERIFIED' : status}
+      {s === 'PAID' ? (verified ? 'PAID · VERIFIED' : 'PAID · UNVERIFIED') : status}
     </span>
   );
 }
 
 type Props = {
-  userId: string;
   fullName: string;
   onToast: (m: string) => void;
   onBack?: () => void;
 };
 
-export default function BusinessView({ userId, fullName, onToast }: Props) {
+export default function BusinessView({ fullName, onToast }: Props) {
   const [tab, setTab] = useState<Tab>('overview');
   const [showDemo, setShowDemo] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -75,17 +75,21 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
   const [tmName, setTmName] = useState('');
   const [tmEmail, setTmEmail] = useState('');
   const [tmSalary, setTmSalary] = useState('');
+  const [collectionAmount, setCollectionAmount] = useState('');
+  const [collectionEmail, setCollectionEmail] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState('');
+  const [invoiceCheckoutUrls, setInvoiceCheckoutUrls] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     try {
-      await apiBizProfile(userId, `${fullName.split(' ')[0]} Business`);
+      await apiBizProfile(`${fullName.split(' ')[0]} Business`);
       const [a, inv, lk, col, exp, tm] = await Promise.all([
-        apiBizAnalytics(userId),
-        apiListInvoices(userId),
-        apiListPaymentLinks(userId),
-        apiListCollections(userId),
-        apiListExpenses(userId),
-        apiListTeam(userId),
+        apiBizAnalytics(),
+        apiListInvoices(),
+        apiListPaymentLinks(),
+        apiListCollections(),
+        apiListExpenses(),
+        apiListTeam(),
       ]);
       setAnalytics(a);
       setInvoices(inv);
@@ -96,7 +100,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
     } catch (e: unknown) {
       onToast(e instanceof Error ? e.message : 'Could not load business data');
     }
-  }, [userId, fullName, onToast]);
+  }, [fullName, onToast]);
 
   useEffect(() => {
     refresh();
@@ -140,9 +144,9 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
       </div>
 
       <div className="glass" style={{ padding: 14, marginTop: 14 }}>
-        <p style={{ fontWeight: 600, fontSize: 13 }}>Business records only</p>
+        <p style={{ fontWeight: 600, fontSize: 13 }}>Test collections only</p>
         <p style={{ color: 'rgba(247,236,212,0.5)', fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>
-          Saved invoices, expenses, and team records do not move funds. Payment links and payroll are unavailable until payment providers are connected. Try simulated workflows separately in the demo.
+          Only Nigeria/NGN Paystack test collections are available when explicitly enabled. Payment links, payroll, and production money movement remain disabled.
         </p>
         <button type="button" className="btn-ghost" onClick={() => setShowDemo(true)} style={{ marginTop: 10 }}>
           Explore business demo
@@ -205,7 +209,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
             <p style={{ fontWeight: 600, marginBottom: 12 }}>Snapshot</p>
             <div style={{ display: 'grid', gap: 10 }}>
               {[
-                ['Active payment links', analytics?.activeLinks || 0],
+                ['Active payment links (disabled)', analytics?.activeLinks || 0],
                 ['Team members', analytics?.teamCount || 0],
                 ['Collections', analytics?.collectionCount || 0],
               ].map(([label, val]) => (
@@ -224,7 +228,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
           <div className="glass" style={{ padding: 16, marginBottom: 14 }}>
             <p style={{ fontWeight: 600, marginBottom: 6 }}>New invoice</p>
             <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginBottom: 14, lineHeight: 1.5 }}>
-              Invoices are records only. Payment receipts cannot be confirmed in Nakconel until a payment provider is connected.
+              Invoices are records. Nigeria/NGN Paystack checkouts are available only in explicitly enabled test environments.
             </p>
             {!invPreview ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -275,7 +279,6 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
                   onClick={() =>
                     run(async () => {
                       await apiCreateInvoice({
-                        userId,
                         customerName: invCustomer.trim(),
                         customerEmail: invEmail.trim() || undefined,
                         amount: parseFloat(invAmount),
@@ -307,10 +310,40 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600 }}>{inv.invoiceNumber}</span>
-                      <StatusPill status={inv.status} />
+                      <StatusPill status={inv.status} verified={inv.paymentProvider === 'PAYSTACK_TEST'} />
                     </div>
                     <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginTop: 4 }}>{inv.customerName}</div>
                     <div style={{ fontWeight: 700, color: '#f0d78c', marginTop: 6 }}>{formatNGN(inv.amount)}</div>
+                    {inv.status !== 'PAID' && inv.customerEmail ? (
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        style={{ width: 'auto', padding: '7px 10px', marginTop: 8, fontSize: 11 }}
+                        disabled={loading}
+                        onClick={() =>
+                          run(async () => {
+                            const checkout = await apiStartBusinessCollection({
+                              source: 'INVOICE',
+                              sourceId: inv.id,
+                            });
+                            setInvoiceCheckoutUrls((current) => ({
+                              ...current,
+                              [inv.id]: checkout.authorizationUrl,
+                            }));
+                            onToast('Test checkout created. The invoice is paid only after provider verification.');
+                          })
+                        }
+                      >
+                        Create test checkout
+                      </button>
+                    ) : null}
+                    {invoiceCheckoutUrls[inv.id] ? (
+                      <div>
+                        <a href={invoiceCheckoutUrls[inv.id]} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#f0d78c' }}>
+                          Open Paystack checkout
+                        </a>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))
@@ -350,25 +383,82 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
       )}
 
       {tab === 'collections' && (
-        <div className="glass" style={{ padding: '4px 16px' }}>
-          {collections.length === 0 ? (
-            <p style={{ color: 'rgba(247,236,212,0.45)', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
-              No bookkeeping records yet — record externally settled invoice payments here
+        <>
+          <div className="glass" style={{ padding: 16, marginBottom: 14 }}>
+            <p style={{ fontWeight: 600, marginBottom: 6 }}>Start a test collection</p>
+            <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)', lineHeight: 1.5, marginBottom: 12 }}>
+              Nigeria · NGN · Paystack test mode only. A collection is marked complete only after provider verification.
             </p>
-          ) : (
-            collections.map((c) => (
-              <div key={c.id} className="tx-row">
-                <div>
-                  <div style={{ fontWeight: 600 }}>{c.reference}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginTop: 2 }}>
-                    {c.source} · {c.payerName || 'Payer'} · {new Date(c.createdAt).toLocaleDateString()}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input
+                className="input"
+                placeholder="Amount (NGN)"
+                inputMode="decimal"
+                value={collectionAmount}
+                onChange={(event) => setCollectionAmount(event.target.value)}
+              />
+              <input
+                className="input"
+                type="email"
+                placeholder="Payer email"
+                value={collectionEmail}
+                onChange={(event) => setCollectionEmail(event.target.value)}
+              />
+              <button
+                type="button"
+                className="btn-gold"
+                disabled={loading}
+                onClick={() =>
+                  run(async () => {
+                    const amount = Number(collectionAmount);
+                    if (!Number.isFinite(amount) || amount <= 0 || !collectionEmail.trim()) {
+                      throw new Error('Enter a valid amount and payer email.');
+                    }
+                    const result = await apiStartBusinessCollection({
+                      source: 'DIRECT',
+                      amount,
+                      payerEmail: collectionEmail.trim(),
+                    });
+                    setCheckoutUrl(result.authorizationUrl);
+                    setCollectionAmount('');
+                    onToast('Test checkout created. The collection is not complete until Paystack confirms payment.');
+                  })
+                }
+              >
+                {loading ? 'Preparing checkout…' : 'Create secure checkout'}
+              </button>
+              {checkoutUrl ? (
+                <a className="btn-ghost" href={checkoutUrl} target="_blank" rel="noreferrer">
+                  Open Paystack checkout
+                </a>
+              ) : null}
+            </div>
+          </div>
+          <div className="glass" style={{ padding: '4px 16px' }}>
+            {collections.length === 0 ? (
+              <p style={{ color: 'rgba(247,236,212,0.45)', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
+                No collections yet
+              </p>
+            ) : (
+              collections.map((c) => (
+                <div key={c.id} className="tx-row">
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{c.reference}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginTop: 2 }}>
+                      {c.source} · {c.payerName || 'Payer'} · {new Date(c.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 700, color: c.status === 'COMPLETED' ? '#5fd492' : '#f0d78c' }}>
+                      {c.status === 'COMPLETED' ? '+' : ''}{formatNGN(c.amount)}
+                    </div>
+                    <StatusPill status={c.status} />
                   </div>
                 </div>
-                <div style={{ fontWeight: 700, color: '#5fd492' }}>+{formatNGN(c.amount)}</div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        </>
       )}
 
       {tab === 'expenses' && (
@@ -390,7 +480,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
                 onClick={() =>
                   run(async () => {
                     if (!expTitle || !expAmount) throw new Error('Title and amount required');
-                    await apiCreateExpense({ userId, category: expCategory, title: expTitle, amount: parseFloat(expAmount) });
+                    await apiCreateExpense({ category: expCategory, title: expTitle, amount: parseFloat(expAmount) });
                     setExpTitle('');
                     setExpAmount('');
                     onToast('Expense logged');
@@ -437,7 +527,7 @@ export default function BusinessView({ userId, fullName, onToast }: Props) {
                 onClick={() =>
                   run(async () => {
                     if (!tmName || !tmEmail) throw new Error('Name and email required');
-                    await apiAddTeamMember({ userId, fullName: tmName, email: tmEmail, salary: tmSalary ? parseFloat(tmSalary) : 0 });
+                    await apiAddTeamMember({ fullName: tmName, email: tmEmail, salary: tmSalary ? parseFloat(tmSalary) : 0 });
                     setTmName('');
                     setTmEmail('');
                     setTmSalary('');

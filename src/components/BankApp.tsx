@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiBalance, apiLogin, apiRegister, type Session } from '@/lib/api';
+import { apiBalance, apiLogin, apiLogout, apiRegister, apiSession, type Session } from '@/lib/api';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
 import BusinessDemoView from '@/components/BusinessDemoView';
@@ -40,6 +40,7 @@ export default function BankApp() {
   const [view, setView] = useState<View>('landing');
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const [session, setSession] = useState<Session | null>(null);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [balance, setBalance] = useState<{ formatted: string; balance: number } | null>(null);
   const [toast, setToast] = useState('');
   const [showBal, setShowBal] = useState(true);
@@ -60,33 +61,66 @@ export default function BankApp() {
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (raw) {
-        const s = JSON.parse(raw) as Session;
-        setSession(s);
+    let cancelled = false;
+
+    async function restoreSession() {
+      try {
+        const currentSession = await apiSession();
+        if (cancelled) return;
+        setSession(currentSession);
         setView('home');
-        if (s.accountId) refreshBalance(s.accountId);
+        if (currentSession.accountId) refreshBalance(currentSession.accountId);
+      } catch {
+        if (cancelled) return;
+        setSession(null);
+        setView('landing');
+      } finally {
+        try {
+          localStorage.removeItem(SESSION_KEY);
+        } catch {
+          /* */
+        }
+        if (!cancelled) setRestoringSession(false);
       }
-    } catch {
-      /* */
     }
+
+    restoreSession();
+    return () => {
+      cancelled = true;
+    };
   }, [refreshBalance]);
 
   useEffect(() => {
     if (session?.accountId) refreshBalance(session.accountId);
   }, [session, refreshBalance]);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const paymentStatus = url.searchParams.get('payment');
+    if (!paymentStatus) return;
+
+    if (paymentStatus === 'completed') {
+      showToast('Payment verified successfully.');
+    } else if (paymentStatus === 'pending') {
+      showToast('Payment is still being verified. Check collections again shortly.');
+    } else if (paymentStatus === 'requires_review') {
+      showToast('Payment was verified but needs manual review before it is applied to the invoice.');
+    } else {
+      showToast('Payment was not completed.');
+    }
+
+    url.searchParams.delete('payment');
+    window.history.replaceState({}, '', url);
+  }, [showToast]);
+
   const persistSession = (s: Session) => {
     setSession(s);
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    } catch {
-      /* */
-    }
   };
 
   const logout = () => {
+    void apiLogout().catch((error: unknown) => {
+      showToast(error instanceof Error ? error.message : 'Could not end server session.');
+    });
     setSession(null);
     setBalance(null);
     try {
@@ -172,6 +206,9 @@ export default function BankApp() {
   }
 
   if (view === 'landing') {
+    if (restoringSession) {
+      return shell(<div className="session-loading" role="status">Opening your secure banking session…</div>);
+    }
     return shell(
       <div className="welcome-screen">
         <section className="welcome-hero">
@@ -230,7 +267,7 @@ export default function BankApp() {
 
   if (view === 'business' && session) {
     return shell(
-      <BusinessView userId={session.id} fullName={session.fullName} onToast={showToast} />,
+      <BusinessView fullName={session.fullName} onToast={showToast} />,
       { nav: true }
     );
   }

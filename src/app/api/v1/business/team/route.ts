@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { addTeamMember, listTeam } from '@/domains/business/service';
+import { getAuthenticatedUserId } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
+  const userId = getAuthenticatedUserId(req);
+  if (!userId) return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
   try {
-    const userId = req.nextUrl.searchParams.get('userId');
-    if (!userId) return NextResponse.json({ success: false, error: 'userId required' }, { status: 400 });
     const data = await listTeam(userId);
     return NextResponse.json({ success: true, phase: 2, data });
   } catch (e: unknown) {
@@ -14,6 +15,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const userId = getAuthenticatedUserId(req);
+  if (!userId) return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
   try {
     const body = await req.json();
     if (body.action === 'pay') {
@@ -23,14 +26,13 @@ export async function POST(req: NextRequest) {
       );
     }
     const parsed = z.object({
-      userId: z.string().uuid(),
       fullName: z.string().min(2),
       email: z.string().email(),
       role: z.string().optional(),
       salary: z.number().nonnegative().optional(),
     }).parse(body);
     const data = await addTeamMember({
-      userId: parsed.userId,
+      userId,
       fullName: parsed.fullName,
       email: parsed.email,
       role: parsed.role,

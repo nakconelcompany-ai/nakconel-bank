@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getOrCreateBusiness } from '@/domains/business/service';
+import { getAuthenticatedUserId } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
+  const userId = getAuthenticatedUserId(req);
+  if (!userId) return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
   try {
     const body = z.object({
-      userId: z.string().uuid(),
       businessName: z.string().optional(),
     }).parse(await req.json());
-    const data = await getOrCreateBusiness(body.userId, body.businessName);
+    const data = await getOrCreateBusiness(userId, body.businessName);
     return NextResponse.json({
       success: true,
       phase: 2,

@@ -5,7 +5,6 @@ export type Session = {
   email: string;
   fullName: string;
   accountId?: string;
-  token: string;
   kycStatus?: string;
 };
 
@@ -55,6 +54,19 @@ export async function apiLogin(email: string, password: string) {
   return json.data as Session;
 }
 
+export async function apiSession() {
+  const res = await fetch('/api/v1/auth/session');
+  const json = await readApiResponse<Session>(res);
+  if (!res.ok || !json.success) throw new Error(json.error || 'Session validation failed');
+  return json.data as Session;
+}
+
+export async function apiLogout() {
+  const res = await fetch('/api/v1/auth/logout', { method: 'POST' });
+  const json = await readApiResponse<{ success: boolean }>(res);
+  if (!res.ok || !json.success) throw new Error(json.error || 'Logout failed');
+}
+
 export async function apiBalance(accountId: string) {
   const res = await fetch(
     `${base}/api/v1/accounts/balance?accountId=${encodeURIComponent(accountId)}`
@@ -93,19 +105,19 @@ export async function apiTransfer(input: {
   return json.data;
 }
 
-export async function apiBizProfile(userId: string, businessName?: string) {
+export async function apiBizProfile(businessName?: string) {
   const res = await fetch('/api/v1/business/profile', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, businessName }),
+    body: JSON.stringify({ businessName }),
   });
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'Business profile failed');
   return json.data;
 }
 
-export async function apiBizAnalytics(userId: string) {
-  const res = await fetch(`/api/v1/business/analytics?userId=${encodeURIComponent(userId)}`);
+export async function apiBizAnalytics() {
+  const res = await fetch('/api/v1/business/analytics');
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'Analytics failed');
   return json.data as {
@@ -122,7 +134,6 @@ export async function apiBizAnalytics(userId: string) {
 }
 
 export async function apiCreateInvoice(body: {
-  userId: string;
   customerName: string;
   customerEmail?: string;
   amount: number;
@@ -138,80 +149,72 @@ export async function apiCreateInvoice(body: {
   return json.data;
 }
 
-export async function apiListInvoices(userId: string) {
-  const res = await fetch(`/api/v1/business/invoices?userId=${encodeURIComponent(userId)}`);
+export async function apiListInvoices() {
+  const res = await fetch('/api/v1/business/invoices');
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'List invoices failed');
   return json.data as Array<{
     id: string;
     invoiceNumber: string;
     customerName: string;
+    customerEmail: string | null;
     amount: number;
+    paymentProvider: string;
     status: string;
-    paymentUrl: string;
     createdAt: string;
   }>;
 }
 
-export async function apiCreatePaymentLink(body: { userId: string; title: string; amount?: number }) {
-  const res = await fetch('/api/v1/business/payment-links', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Payment link failed');
-  return json.data;
-}
-
-export async function apiListPaymentLinks(userId: string) {
-  const res = await fetch(`/api/v1/business/payment-links?userId=${encodeURIComponent(userId)}`);
+export async function apiListPaymentLinks() {
+  const res = await fetch('/api/v1/business/payment-links');
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'List links failed');
   return json.data as Array<{
     id: string;
     title: string;
     amount: number | null;
-    url: string;
     status: string;
     collectCount: number;
   }>;
 }
 
-export async function apiListCollections(userId: string) {
-  const res = await fetch(`/api/v1/business/collections?userId=${encodeURIComponent(userId)}`);
+export async function apiListCollections() {
+  const res = await fetch('/api/v1/business/collections');
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'Collections failed');
   return json.data as Array<{
     id: string;
     reference: string;
     amount: number;
+    currency: string;
     source: string;
     payerName: string | null;
+    status: string;
     createdAt: string;
   }>;
 }
 
-export async function apiRecordCollection(body: {
-  userId: string;
-  source: 'INVOICE' | 'PAYMENT_LINK' | 'DIRECT';
-  sourceId?: string;
-  amount: number;
-  payerName?: string;
-  payerEmail?: string;
-}) {
+export async function apiStartBusinessCollection(input:
+  | { source: 'INVOICE'; sourceId: string }
+  | { source: 'DIRECT'; amount: number; payerName?: string; payerEmail: string }
+) {
   const res = await fetch('/api/v1/business/collections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(input),
   });
   const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Collection failed');
-  return json.data;
+  if (!res.ok || !json.success) throw new Error(json.error || 'Could not start collection');
+  return json.data as {
+    reference: string;
+    authorizationUrl: string;
+    amount: number;
+    currency: string;
+    status: string;
+  };
 }
 
 export async function apiCreateExpense(body: {
-  userId: string;
   category: string;
   title: string;
   amount: number;
@@ -227,15 +230,14 @@ export async function apiCreateExpense(body: {
   return json.data;
 }
 
-export async function apiListExpenses(userId: string) {
-  const res = await fetch(`/api/v1/business/expenses?userId=${encodeURIComponent(userId)}`);
+export async function apiListExpenses() {
+  const res = await fetch('/api/v1/business/expenses');
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'List expenses failed');
   return json.data as Array<{ id: string; category: string; title: string; amount: number; spentAt: string }>;
 }
 
 export async function apiAddTeamMember(body: {
-  userId: string;
   fullName: string;
   email: string;
   role?: string;
@@ -251,8 +253,8 @@ export async function apiAddTeamMember(body: {
   return json.data;
 }
 
-export async function apiListTeam(userId: string) {
-  const res = await fetch(`/api/v1/business/team?userId=${encodeURIComponent(userId)}`);
+export async function apiListTeam() {
+  const res = await fetch('/api/v1/business/team');
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'List team failed');
   return json.data as Array<{ id: string; fullName: string; email: string; role: string; salary: number; status: string }>;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { registerUser } from '@/domains/identity/service';
+import { hasSameOriginRequest } from '@/lib/session';
 
 const schema = z.object({
   email: z.string().email(),
@@ -11,6 +12,10 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  if (!hasSameOriginRequest(req)) {
+    return NextResponse.json({ success: false, error: 'Request origin is not allowed.' }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const data = schema.parse(body);
