@@ -275,11 +275,6 @@ export default function BankApp() {
         </section>
         <button type="button" className="btn-gold" style={{ minHeight: 50 }} onClick={() => { setAuthTab('signup'); setView('auth'); }}>Get started</button>
         <button type="button" className="btn-outline" style={{ marginTop: 10, minHeight: 48 }} onClick={() => { setAuthTab('login'); setView('auth'); }}>I already have an account</button>
-        <div className="welcome-demo">
-          <p>Explore Nakconel Business</p>
-          <span>Try invoices, payment links and expenses with sample data.</span>
-          <button type="button" className="home-shortcut" onClick={() => setView('business-demo')}><span>Open business demo</span><span>→</span></button>
-        </div>
       </div>
     );
   }
