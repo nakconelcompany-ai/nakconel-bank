@@ -150,7 +150,11 @@ export async function listInternationalTransfers(userId: string) {
     orderBy: { createdAt: 'desc' },
     take: 50,
   });
-  return rows.map((t) => ({
+  return rows.map((t: {
+    id: string; status: string; corridor: string; destinationCountry: string;
+    destinationCurrency: string; amountNgnKobo: number; feeKobo: number;
+    amountForeign: number; fxRate: number; beneficiaryName: string; createdAt: Date;
+  }) => ({
     id: t.id,
     status: t.status,
     corridor: t.corridor,

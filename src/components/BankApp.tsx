@@ -1,214 +1,270 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiBalance, apiLogin, apiLogout, apiRegister, apiSession, type Session } from '@/lib/api';
+import {
+  apiBalance, apiLogout, apiSession, type Session, type TxItem,
+  apiTransfer, apiTransferHistory, apiTopUp, apiKycStatus, apiKycSubmit,
+} from '@/lib/api';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
 import BusinessDemoView from '@/components/BusinessDemoView';
 import SignupFlow from '@/components/SignupFlow';
 import InternationalView from '@/components/InternationalView';
+import { NG_BANKS, resolveAccountName } from '@/lib/banks';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconWorld, IconArrowRight,
-  IconHistory, IconUser, IconBiz, IconEye, IconEyeOff,
+  IconHistory, IconUser, IconBiz, IconEye, IconEyeOff, IconCard, IconCheck,
 } from '@/components/Icons';
 
 type View =
-  | 'landing' | 'auth' | 'home' | 'send' | 'receive' | 'topup'
-  | 'history' | 'card' | 'kyc' | 'account' | 'business' | 'business-demo' | 'international';
+  | 'landing' | 'auth' | 'home'
+  | 'send' | 'receive' | 'topup' | 'history'
+  | 'card' | 'kyc' | 'account'
+  | 'pin' | 'success'
+  | 'business' | 'business-demo' | 'international';
 
-type Tx = {
-  id: string;
-  type: 'send' | 'receive' | 'topup';
-  title: string;
-  amount: number;
-  fee?: number;
-  time: string;
-  status: string;
-};
-
+const FEE = 50;
 const SESSION_KEY = 'nakconel_session';
 
-function formatNGN(n: number) {
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    minimumFractionDigits: 2,
-  }).format(n);
+const fmt = (n: number) =>
+  new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 2 }).format(n);
+
+function uid() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `id_${Date.now()}`;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, [string, string]> = {
+    COMPLETED:  ['rgba(40,119,78,.12)', 'var(--ok)'],
+    VERIFIED:   ['rgba(40,119,78,.12)', 'var(--ok)'],
+    PENDING:    ['rgba(197,155,68,.15)', '#a07820'],
+    PROCESSING: ['rgba(197,155,68,.15)', '#a07820'],
+    FAILED:     ['rgba(185,69,66,.1)',   'var(--danger)'],
+    REJECTED:   ['rgba(185,69,66,.1)',   'var(--danger)'],
+  };
+  const [bg, color] = map[status] ?? ['rgba(0,0,0,.06)', 'var(--muted)'];
+  return <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: bg, color }}>{status}</span>;
 }
 
 export default function BankApp() {
-  const [view, setView] = useState<View>('landing');
-  const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
-  const [session, setSession] = useState<Session | null>(null);
-  const [restoringSession, setRestoringSession] = useState(true);
-  const [balance, setBalance] = useState<{ formatted: string; balance: number } | null>(null);
-  const [toast, setToast] = useState('');
-  const [showBal, setShowBal] = useState(true);
-  const [txs, setTxs] = useState<Tx[]>([]);
+  const [view, setView]             = useState<View>('landing');
+  const [authTab, setAuthTab]       = useState<'login'|'signup'>('login');
+  const [session, setSession]       = useState<Session | null>(null);
+  const [restoring, setRestoring]   = useState(true);
+  const [balance, setBalance]       = useState<{ formatted: string; balance: number } | null>(null);
+  const [toast, setToast]           = useState('');
+  const [showBal, setShowBal]       = useState(true);
+  const [txs, setTxs]               = useState<TxItem[]>([]);
+  const [txLoading, setTxLoading]   = useState(false);
+  const [txCursor, setTxCursor]     = useState<string | null>(null);
+  const [txHasMore, setTxHasMore]   = useState(false);
+  const [loading, setLoading]       = useState(false);
 
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3200);
-  }, []);
+  // send form
+  const [sendAmount, setSendAmount] = useState('');
+  const [sendBank, setSendBank]     = useState('');
+  const [sendAcct, setSendAcct]     = useState('');
+  const [sendName, setSendName]     = useState('');
+  const [sendNote, setSendNote]     = useState('');
+  const [nameLoading, setNameLoading] = useState(false);
+
+  // topup
+  const [topupAmt, setTopupAmt]     = useState('');
+  const [topupLoading, setTopupLoading] = useState(false);
+
+  // kyc
+  const [kycStatus, setKycStatus]   = useState<string | null>(null);
+  const [kycSub, setKycSub]         = useState<{ status: string; idType: string } | null>(null);
+  const [kycLoading, setKycLoading] = useState(false);
+  const [kycForm, setKycForm]       = useState({
+    fullName: '', dateOfBirth: '', phone: '', address: '', bvn: '',
+    idType: 'NIN' as 'NIN' | 'PASSPORT' | 'DRIVERS_LICENCE' | 'VOTERS_CARD',
+  });
+  const [kycStep, setKycStep]       = useState<'form'|'submitting'|'done'>('form');
+
+  // pin gate
+  const [pin, setPin]               = useState('');
+  const [pendingAction, setPending] = useState<null|(()=>Promise<void>)>(null);
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const toast$ = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3400); }, []);
 
   const refreshBalance = useCallback(async (accountId: string) => {
-    try {
-      const b = await apiBalance(accountId);
-      setBalance({ formatted: b.formatted, balance: b.balance });
-    } catch {
-      /* ignore */
-    }
+    try { const b = await apiBalance(accountId); setBalance({ formatted: b.formatted, balance: b.balance }); }
+    catch { /**/ }
   }, []);
 
+  // restore session
   useEffect(() => {
-    let cancelled = false;
-
-    async function restoreSession() {
-      try {
-        const currentSession = await apiSession();
-        if (cancelled) return;
-        setSession(currentSession);
-        setView('home');
-        if (currentSession.accountId) refreshBalance(currentSession.accountId);
-      } catch {
-        if (cancelled) return;
-        setSession(null);
-        setView('landing');
-      } finally {
-        try {
-          localStorage.removeItem(SESSION_KEY);
-        } catch {
-          /* */
-        }
-        if (!cancelled) setRestoringSession(false);
-      }
-    }
-
-    restoreSession();
-    return () => {
-      cancelled = true;
-    };
+    let dead = false;
+    apiSession()
+      .then(s => { if (dead) return; setSession(s); setView('home'); if (s.accountId) refreshBalance(s.accountId); })
+      .catch(() => { if (!dead) { setSession(null); setView('landing'); } })
+      .finally(() => { try { localStorage.removeItem(SESSION_KEY); } catch { /**/ } if (!dead) setRestoring(false); });
+    return () => { dead = true; };
   }, [refreshBalance]);
 
+  // payment callback
   useEffect(() => {
-    if (session?.accountId) refreshBalance(session.accountId);
-  }, [session, refreshBalance]);
+    const u = new URL(window.location.href);
+    const p = u.searchParams.get('payment');
+    if (!p) return;
+    if (p === 'completed') toast$('Payment received. Wallet credited!');
+    else if (p === 'pending') toast$('Payment pending — wallet will be credited shortly.');
+    else toast$('Payment was not completed.');
+    ['payment','ref','accountId'].forEach(k => u.searchParams.delete(k));
+    window.history.replaceState({}, '', u);
+  }, [toast$]);
 
+  // load history when view changes
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const paymentStatus = url.searchParams.get('payment');
-    if (!paymentStatus) return;
+    if (view !== 'history' || !session?.accountId || txs.length > 0) return;
+    loadHistory();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, session]);
 
-    if (paymentStatus === 'completed') {
-      showToast('Payment verified successfully.');
-    } else if (paymentStatus === 'pending') {
-      showToast('Payment is still being verified. Check collections again shortly.');
-    } else if (paymentStatus === 'requires_review') {
-      showToast('Payment was verified but needs manual review before it is applied to the invoice.');
-    } else {
-      showToast('Payment was not completed.');
-    }
+  // load kyc status
+  useEffect(() => {
+    if (view !== 'kyc') return;
+    setKycLoading(true);
+    apiKycStatus()
+      .then(d => {
+        setKycStatus(d.kycStatus);
+        setKycSub(d.latestSubmission);
+        setKycForm(f => ({ ...f, fullName: f.fullName || (session?.fullName ?? ''), phone: f.phone || (session?.phone ?? '') }));
+      })
+      .catch(() => {})
+      .finally(() => setKycLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
-    url.searchParams.delete('payment');
-    window.history.replaceState({}, '', url);
-  }, [showToast]);
-
-  const persistSession = (s: Session) => {
-    setSession(s);
-  };
+  // name lookup
+  useEffect(() => {
+    if (sendAcct.length !== 10 || !sendBank) { setSendName(''); return; }
+    setSendName(''); setNameLoading(true);
+    resolveAccountName(sendAcct, sendBank)
+      .then(n => setSendName(n))
+      .catch(() => setSendName(''))
+      .finally(() => setNameLoading(false));
+  }, [sendAcct, sendBank]);
 
   const logout = () => {
-    void apiLogout().catch((error: unknown) => {
-      showToast(error instanceof Error ? error.message : 'Could not end server session.');
-    });
-    setSession(null);
-    setBalance(null);
-    try {
-      localStorage.removeItem(SESSION_KEY);
-    } catch {
-      /* */
-    }
-    setView('landing');
+    void apiLogout().catch(() => {});
+    setSession(null); setBalance(null); setTxs([]); setView('landing');
   };
 
+  async function loadHistory(cursor?: string) {
+    if (!session?.accountId) return;
+    setTxLoading(true);
+    try {
+      const r = await apiTransferHistory(session.accountId, cursor);
+      setTxs(prev => cursor ? [...prev, ...r.items] : r.items);
+      setTxCursor(r.nextCursor); setTxHasMore(r.hasMore);
+    } catch { toast$('Could not load transaction history'); }
+    finally { setTxLoading(false); }
+  }
+
+  /* ── keypad components ── */
+  const PinDots = ({ val }: { val: string }) => (
+    <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '18px 0' }}>
+      {[0,1,2,3].map(i => (
+        <div key={i} className="pin-dot" style={{ background: i < val.length ? 'var(--maroon)' : 'transparent' }} />
+      ))}
+    </div>
+  );
+  const Keypad = ({ val, onChange }: { val: string; onChange: (v: string) => void }) => {
+    const press = (k: string) =>
+      onChange(k === '⌫' ? val.slice(0, -1) : val.length < 4 ? val + k : val);
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, maxWidth: 280, margin: '0 auto', width: '100%' }}>
+        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) =>
+          k ? <button key={i} type="button" onClick={() => press(k)}
+            style={{ padding: '15px 0', fontSize: '1.2rem', fontWeight: 700, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--ink)' }}>{k}</button>
+            : <span key={i} />
+        )}
+      </div>
+    );
+  };
+
+  /* ── shell ── */
   function shell(children: React.ReactNode, opts?: { nav?: boolean }) {
     const navItems = [
       ['home', 'Home', IconHome],
       ['send', 'Send', IconSend],
-      ['business', 'Business', IconBiz],
+      ['business', 'Biz', IconBiz],
       ['international', 'Global', IconWorld],
-      ['account', 'Profile', IconUser],
+      ['account', 'Me', IconUser],
     ] as const;
     const showNav = Boolean(opts?.nav && session);
 
+    const selfie = typeof localStorage !== 'undefined' ? (() => { try { return localStorage.getItem('nkc_selfie'); } catch { return null; } })() : null;
+
     return (
       <div className="app-shell">
-        {toast ? (
-          <div className="toast" role="status">{toast}</div>
-        ) : null}
+        {toast && <div className="toast" role="status">{toast}</div>}
         <header className="brand-header">
           <Logo size={44} className="brand-logo" />
-          <div className="brand-copy" aria-label="Nakconel Bank">
+          <div className="brand-copy">
             <div className="brand-name">NAKCONEL</div>
             <div className="brand-bank">BANK</div>
           </div>
           <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
         </header>
         <div className={`app-layout${showNav ? ' has-navigation' : ''}`}>
-          {showNav ? (
+          {showNav && (
             <aside className="desktop-sidebar">
               <p className="sidebar-label">YOUR BANK</p>
-              <nav className="sidebar-nav" aria-label="Main navigation">
+              <nav className="sidebar-nav">
                 {navItems.map(([v, label, Icon]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setView(v)}
-                    className={`sidebar-link${view === v ? ' active' : ''}`}
-                    aria-current={view === v ? 'page' : undefined}
-                  >
+                  <button key={v} type="button" onClick={() => setView(v)}
+                    className={`sidebar-link${view === v ? ' active' : ''}`}>
                     <Icon size={20} />
-                    <span>{label}</span>
-                    {view === v ? <span className="sidebar-current" /> : null}
+                    <span>{v === 'business' ? 'Business' : v === 'account' ? 'Profile' : v === 'international' ? 'International' : label}</span>
+                    {view === v && <span className="sidebar-current" />}
+                  </button>
+                ))}
+                {(['history','card','kyc','topup'] as const).map(v => (
+                  <button key={v} type="button" onClick={() => setView(v)}
+                    className={`sidebar-link${view === v ? ' active' : ''}`}>
+                    {v === 'history' ? <IconHistory size={20} /> : v === 'card' ? <IconCard size={20} /> : v === 'kyc' ? <IconUser size={20} /> : <IconTopUp size={20} />}
+                    <span>{v === 'topup' ? 'Top up' : v.charAt(0).toUpperCase() + v.slice(1)}</span>
+                    {view === v && <span className="sidebar-current" />}
                   </button>
                 ))}
               </nav>
               <div className="sidebar-account">
-                <span className="sidebar-account-avatar">{session?.fullName.trim().charAt(0).toUpperCase()}</span>
+                {selfie
+                  ? <img src={selfie} alt="Profile" style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  : <span className="sidebar-account-avatar">{session?.fullName.trim()[0]?.toUpperCase()}</span>
+                }
                 <span className="sidebar-account-copy">
                   <strong>{session?.fullName.split(' ')[0]}</strong>
-                  <small>Personal account</small>
+                  <small>{session?.kycStatus === 'VERIFIED' ? '✓ Verified' : 'Personal account'}</small>
                 </span>
                 <button type="button" className="sidebar-logout" onClick={logout}>Sign out</button>
               </div>
             </aside>
-          ) : null}
+          )}
           <main className={`app-content${showNav ? '' : ' no-nav'}`}>{children}</main>
         </div>
-        {showNav ? (
-          <nav className="bottom-nav" aria-label="Main navigation">
+        {showNav && (
+          <nav className="bottom-nav">
             {navItems.map(([v, label, Icon]) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`nav-btn${view === v ? ' active' : ''}`}
-                aria-current={view === v ? 'page' : undefined}
-              >
+              <button key={v} type="button" onClick={() => setView(v)}
+                className={`nav-btn${view === v ? ' active' : ''}`}>
                 <span className="nav-icon-wrap"><Icon size={21} /></span>
-                {label === 'Business' ? 'Biz' : label === 'Global' ? 'World' : label === 'Profile' ? 'Me' : label}
+                {label === 'Global' ? 'World' : label === 'Biz' ? 'Biz' : label === 'Me' ? 'Me' : label}
               </button>
             ))}
           </nav>
-        ) : null}
+        )}
       </div>
     );
   }
 
+  /* ════════ LANDING ════════ */
   if (view === 'landing') {
-    if (restoringSession) {
-      return shell(<div className="session-loading" role="status">Opening your secure banking session…</div>);
-    }
+    if (restoring) return shell(<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Opening your secure session…</div>);
     return shell(
       <div className="welcome-screen">
         <section className="welcome-hero">
@@ -217,232 +273,463 @@ export default function BankApp() {
           <h1>Banking for today,<br />building for tomorrow.</h1>
           <p>Everyday money and business tools, designed to move with you.</p>
         </section>
-        <button
-          type="button"
-          className="btn-gold"
-          style={{ minHeight: 50 }}
-          onClick={() => {
-            setAuthTab('signup');
-            setView('auth');
-          }}
-        >Get started</button>
-        <button
-          type="button"
-          className="btn-outline"
-          style={{ marginTop: 10, minHeight: 48 }}
-          onClick={() => {
-            setAuthTab('login');
-            setView('auth');
-          }}
-        >I already have an account</button>
+        <button type="button" className="btn-gold" style={{ minHeight: 50 }} onClick={() => { setAuthTab('signup'); setView('auth'); }}>Get started</button>
+        <button type="button" className="btn-outline" style={{ marginTop: 10, minHeight: 48 }} onClick={() => { setAuthTab('login'); setView('auth'); }}>I already have an account</button>
         <div className="welcome-demo">
           <p>Explore Nakconel Business</p>
           <span>Try invoices, payment links and expenses with sample data.</span>
-          <button type="button" className="home-shortcut" onClick={() => setView('business-demo')}>
-            <span>Open business demo</span><span aria-hidden="true">→</span>
-          </button>
+          <button type="button" className="home-shortcut" onClick={() => setView('business-demo')}><span>Open business demo</span><span>→</span></button>
         </div>
       </div>
     );
   }
 
-  if (view === 'auth') {
-    return shell(
-      <SignupFlow
-        initialTab={authTab}
-        onToast={showToast}
-        onBack={() => setView('landing')}
-        onSuccess={(s) => {
-          persistSession(s);
-          setView('home');
-          if (s.accountId) refreshBalance(s.accountId);
-        }}
-      />
-    );
-  }
+  /* ════════ AUTH ════════ */
+  if (view === 'auth') return shell(
+    <SignupFlow initialTab={authTab} onToast={toast$} onBack={() => setView('landing')}
+      onSuccess={s => { setSession(s); setView('home'); if (s.accountId) refreshBalance(s.accountId); }} />
+  );
 
-  if (view === 'business-demo') {
-    return shell(<BusinessDemoView onBack={() => setView('landing')} />);
-  }
+  if (view === 'business-demo') return shell(<BusinessDemoView onBack={() => setView('landing')} />);
+  if (view === 'business' && session) return shell(<BusinessView fullName={session.fullName} onToast={toast$} />, { nav: true });
+  if (view === 'international' && session) return shell(<InternationalView userId={session.id} onToast={toast$} />, { nav: true });
 
-  if (view === 'business' && session) {
-    return shell(
-      <BusinessView fullName={session.fullName} onToast={showToast} />,
-      { nav: true }
-    );
-  }
+  /* ════════ PIN GATE ════════ */
+  if (view === 'pin') return shell(
+    <div>
+      <button type="button" className="btn-ghost" style={{ marginBottom: 16 }}
+        onClick={() => { setView('send'); setPin(''); setPending(null); }}>← Cancel</button>
+      <h2 style={{ marginBottom: 6 }}>Enter your PIN</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Confirm this transaction with your 4-digit PIN</p>
+      <PinDots val={pin} />
+      <Keypad val={pin} onChange={async v => {
+        setPin(v);
+        if (v.length === 4 && pendingAction) {
+          setLoading(true);
+          try { await pendingAction(); }
+          catch (e: unknown) { toast$(e instanceof Error ? e.message : 'Action failed'); }
+          finally { setLoading(false); setPin(''); setPending(null); }
+        }
+      }} />
+      {loading && <p style={{ textAlign: 'center', marginTop: 16, color: 'var(--muted)', fontSize: 13 }}>Processing…</p>}
+    </div>,
+    { nav: true }
+  );
 
-  if (view === 'international' && session) {
-    return shell(
-      <InternationalView
-        userId={session.id}
-        onToast={showToast}
-      />,
-      { nav: true }
-    );
-  }
+  /* ════════ SUCCESS ════════ */
+  if (view === 'success') return shell(
+    <div style={{ textAlign: 'center', paddingTop: 32 }}>
+      <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(40,119,78,.12)', border: '2px solid var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+        <IconCheck size={44} color="var(--ok)" />
+      </div>
+      <h2 style={{ color: 'var(--ok)', marginBottom: 8 }}>Done!</h2>
+      <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 28, lineHeight: 1.6 }}>{successMsg}</p>
+      <button type="button" className="btn-gold" onClick={() => { setView('home'); refreshBalance(session?.accountId ?? ''); }}>Back to home</button>
+    </div>,
+    { nav: true }
+  );
 
-  if (view === 'home' && session) {
-    return shell(
-      <div className="home-screen">
-        <div className="home-greeting">
-          <div>
-            <div className="eyebrow">Good day,</div>
-            <div className="name">{session.fullName.split(' ')[0]}</div>
-          </div>
-          <span className="home-avatar" aria-hidden="true">{session.fullName.trim().charAt(0).toUpperCase()}</span>
+  /* ════════ HOME ════════ */
+  if (view === 'home' && session) return shell(
+    <div className="home-screen">
+      <div className="home-greeting">
+        <div>
+          <div className="eyebrow">Good day,</div>
+          <div className="name">{session.fullName.split(' ')[0]}</div>
         </div>
-        <section className="balance-card" aria-label="Available balance">
-          <div className="balance-label">
-            <span>Available balance</span>
-            <button type="button" aria-label={showBal ? 'Hide balance' : 'Show balance'} onClick={() => setShowBal(!showBal)}>
-              {showBal ? <IconEye /> : <IconEyeOff />}
-            </button>
-          </div>
-          <div className="balance-amount">{showBal ? balance?.formatted || '₦0.00' : '••••••••'}</div>
-          <div className="balance-caption">Naira wallet <span>•</span> NGN</div>
-        </section>
-        <div className="quick-actions">
-          {(
-            [
-              ['send', IconSend, 'Send'],
-              ['receive', IconReceive, 'Receive'],
-              ['topup', IconTopUp, 'Top up'],
-              ['history', IconHistory, 'History'],
-            ] as const
-          ).map(([v, Icon, label]) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setView(v)}
-              className="quick-action"
-            >
-              <span className="quick-action-icon"><Icon size={20} /></span>
-              {label}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => setView('business')}
-          className="home-shortcut"
-        >
-          <span><strong>Business banking</strong><br /><small>Manage invoices and expenses</small></span><IconArrowRight size={19} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('international')}
-          className="home-shortcut"
-        >
-          <span><strong>International</strong><br /><small>View indicative exchange estimates</small></span><IconArrowRight size={19} />
-        </button>
-        <h2 className="section-heading">Recent activity</h2>
-        <section className="glass activity-card">
-          {txs.length === 0 ? (
-            <p className="activity-empty">Your recent transactions will appear here.</p>
-          ) : txs.slice(0, 4).map((t) => (
-            <div key={t.id} className="tx-row">
-              <div><strong>{t.title}</strong><div className="activity-meta">{t.status}</div></div>
-              <strong className={t.type === 'send' ? 'activity-out' : 'activity-in'}>{t.type === 'send' ? '−' : '+'}{formatNGN(t.amount)}</strong>
-            </div>
-          ))}
-        </section>
-      </div>,
-      { nav: true }
-    );
-  }
+        {(() => {
+          const selfie = typeof localStorage !== 'undefined' ? (() => { try { return localStorage.getItem('nkc_selfie'); } catch { return null; } })() : null;
+          return selfie
+            ? <img src={selfie} alt="Profile" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
+            : <span className="home-avatar">{session.fullName.trim()[0]?.toUpperCase()}</span>;
+        })()}
+      </div>
 
+      <section className="balance-card" aria-label="Available balance">
+        <div className="balance-label">
+          <span>Available balance</span>
+          <button type="button" aria-label={showBal ? 'Hide balance' : 'Show balance'} onClick={() => setShowBal(b => !b)}>
+            {showBal ? <IconEye /> : <IconEyeOff />}
+          </button>
+        </div>
+        <div className="balance-amount">{showBal ? (balance?.formatted ?? '₦0.00') : '••••••••'}</div>
+        <div className="balance-caption">Naira wallet <span>•</span> NGN</div>
+      </section>
+
+      <div className="quick-actions">
+        {([['send',IconSend,'Send'],['receive',IconReceive,'Receive'],['topup',IconTopUp,'Top up'],['history',IconHistory,'History']] as const).map(([v,Icon,label]) => (
+          <button key={v} type="button" onClick={() => setView(v)} className="quick-action">
+            <span className="quick-action-icon"><Icon size={20} /></span>{label}
+          </button>
+        ))}
+      </div>
+
+      {session.kycStatus !== 'VERIFIED' && (
+        <button type="button" className="home-shortcut" style={{ background: 'rgba(197,155,68,.08)', borderColor: 'rgba(197,155,68,.4)' }} onClick={() => setView('kyc')}>
+          <span><strong>Complete your KYC</strong><br /><small>Verify your identity to unlock full features</small></span>
+          <IconArrowRight size={19} />
+        </button>
+      )}
+
+      <button type="button" onClick={() => setView('card')} className="home-shortcut">
+        <span><strong>Virtual card</strong><br /><small>View and manage your Nakconel card</small></span><IconArrowRight size={19} />
+      </button>
+      <button type="button" onClick={() => setView('business')} className="home-shortcut">
+        <span><strong>Business banking</strong><br /><small>Manage invoices and expenses</small></span><IconArrowRight size={19} />
+      </button>
+      <button type="button" onClick={() => setView('international')} className="home-shortcut">
+        <span><strong>International transfers</strong><br /><small>Send money abroad at competitive rates</small></span><IconArrowRight size={19} />
+      </button>
+
+      <h2 className="section-heading">Recent activity</h2>
+      <section className="glass activity-card">
+        {txs.length === 0
+          ? <p className="activity-empty">Your recent transactions will appear here.</p>
+          : txs.slice(0, 4).map(t => (
+              <div key={t.id} className="tx-row">
+                <div><strong>{t.title}</strong><div className="activity-meta">{new Date(t.createdAt).toLocaleDateString('en-NG')}</div></div>
+                <div style={{ textAlign: 'right' }}>
+                  <strong className="activity-out">-{fmt(t.amount)}</strong>
+                  <div><StatusBadge status={t.status} /></div>
+                </div>
+              </div>
+            ))
+        }
+        {txs.length === 0 && <button type="button" className="btn-outline" style={{ marginTop: 12, fontSize: 13 }} onClick={() => loadHistory()}>Refresh</button>}
+      </section>
+    </div>,
+    { nav: true }
+  );
+
+  /* ════════ SEND ════════ */
   if (view === 'send' && session) {
+    const amt = parseFloat(sendAmount) || 0;
+    const total = amt + (amt > 0 ? FEE : 0);
     return shell(
       <div>
-        <h2 style={{ marginBottom: 8 }}>Send money</h2>
-        <div role="status" style={{ background: 'rgba(240,215,140,0.1)', border: '1px solid rgba(240,215,140,0.32)', borderRadius: 16, color: '#f0d78c', fontSize: 13, lineHeight: 1.6, padding: 16 }}>
-          Bank transfers are currently unavailable. No money will be moved. Transfers can be enabled after a licensed payment provider and settlement checks are in place.
-        </div>
-      </div>,
-      { nav: true }
-    );
-  }
+        <h2 style={{ marginBottom: 4 }}>Send money</h2>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>Transfer to any Nigerian bank account</p>
 
-  if (view === 'receive' && session) {
-    return shell(
-      <div>
-        <h2>Receive</h2>
-        <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)', marginBottom: 16 }}>No bank-issued receiving account is available yet.</p>
-        <div style={{ background: 'rgba(247,236,212,0.05)', borderRadius: 14, padding: 16 }}>
-          <div style={{ fontSize: 13, color: 'rgba(247,236,212,0.65)' }}>Your email is not a bank account number. Receiving funds is unavailable until an account provider is connected.</div>
-        </div>
-      </div>,
-      { nav: true }
-    );
-  }
+        <label className="field-label">Bank</label>
+        <select value={sendBank} onChange={e => setSendBank(e.target.value)} className="input" style={{ marginBottom: 12 }}>
+          <option value="">Select bank</option>
+          {NG_BANKS.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+        </select>
 
-  if (view === 'topup' && session) {
-    return shell(
-      <div>
-        <h2>Top up</h2>
-        <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)' }}>Wallet top-ups are unavailable until a payment provider is connected. No funds can be added here.</p>
-      </div>,
-      { nav: true }
-    );
-  }
+        <label className="field-label">Account number</label>
+        <input value={sendAcct} onChange={e => setSendAcct(e.target.value.replace(/\D/g,'').slice(0,10))}
+          placeholder="10 digits" inputMode="numeric" className="input" style={{ marginBottom: 8 }} />
+        {nameLoading && <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>Looking up account…</p>}
+        {sendName && <p style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 12, fontWeight: 600 }}>✓ {sendName}</p>}
 
-  if (view === 'history' && session) {
-    return shell(
-      <div>
-        <h2>History</h2>
-        {txs.length === 0 ? (
-          <p style={{ color: 'rgba(247,236,212,0.45)', marginTop: 24, textAlign: 'center' }}>No transactions yet</p>
-        ) : (
-          txs.map((t) => (
-            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(247,236,212,0.08)' }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{t.title}</div>
-                <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)' }}>{t.status}</div>
-              </div>
-              <div style={{ fontWeight: 700, color: t.type === 'send' ? '#f0d78c' : '#5fd492' }}>
-                {t.type === 'send' ? '-' : '+'}{formatNGN(t.amount)}
-              </div>
-            </div>
-          ))
-        )}
-      </div>,
-      { nav: true }
-    );
-  }
+        <label className="field-label">Amount (₦)</label>
+        <div className="amount-box" style={{ marginBottom: 12 }}>
+          <span className="currency">₦</span>
+          <input value={sendAmount} onChange={e => setSendAmount(e.target.value)}
+            placeholder="0.00" inputMode="decimal" style={{ border: 'none', background: 'transparent', color: 'var(--ink)', fontSize: 22, fontWeight: 700, padding: '12px 10px', width: '100%', outline: 'none' }} />
+        </div>
 
-  if (view === 'account' && session) {
-    return shell(
-      <div>
-        <h2 style={{ marginBottom: 16 }}>Account</h2>
-        <div style={{ background: 'rgba(247,236,212,0.05)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)' }}>Name</div>
-          <div>{session.fullName}</div>
-        </div>
-        <div style={{ background: 'rgba(247,236,212,0.05)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)' }}>Email</div>
-          <div>{session.email}</div>
-        </div>
-        <button
-          type="button"
-          style={{
-            width: '100%',
-            padding: 14,
-            borderRadius: 14,
-            color: '#e07070',
-            border: '1px solid rgba(224,112,112,0.3)',
-            background: 'transparent',
-            marginTop: 14,
-            cursor: 'pointer',
-          }}
-          onClick={logout}
-        >
-          Log out
+        <label className="field-label">Note (optional)</label>
+        <input value={sendNote} onChange={e => setSendNote(e.target.value)}
+          placeholder="What is this for?" className="input" style={{ marginBottom: 16 }} />
+
+        {amt > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Fee ₦{FEE} · Total debit {fmt(total)}</p>}
+
+        <button type="button" className="btn-gold" disabled={!sendName || amt <= 0 || !session.accountId}
+          onClick={() => {
+            setPending(() => async () => {
+              if (!session.accountId) return;
+              const tx = await apiTransfer({
+                fromAccountId: session.accountId,
+                amount: amt,
+                beneficiaryName: sendName,
+                beneficiaryAccount: sendAcct,
+                bankCode: sendBank,
+                note: sendNote || undefined,
+                pin,
+                idempotencyKey: uid(),
+              });
+              setTxs(prev => [{ ...tx, title: sendName, type: 'send' }, ...prev]);
+              setSuccessMsg(`Sent ${fmt(amt)} to ${sendName}`);
+              setSendAmount(''); setSendAcct(''); setSendName(''); setSendNote('');
+              setView('success');
+              refreshBalance(session.accountId!);
+            });
+            setPin('');
+            setView('pin');
+          }}>
+          {sendName ? `Send ${fmt(amt)} to ${sendName}` : 'Continue'}
         </button>
       </div>,
       { nav: true }
     );
   }
 
-  return shell(<div style={{ padding: 48, textAlign: 'center', color: 'rgba(247,236,212,0.5)' }}>Loading…</div>);
+  /* ════════ RECEIVE ════════ */
+  if (view === 'receive' && session) return shell(
+    <div>
+      <h2 style={{ marginBottom: 4 }}>Receive money</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Share your account details to receive funds</p>
+      <div className="glass" style={{ padding: 20, marginBottom: 16 }}>
+        {[
+          ['Account Name', session.fullName],
+          ['Bank', 'Nakconel Bank'],
+          ['Account Number', session.phone ?? 'Not set'],
+          ['Currency', 'NGN'],
+        ].map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>{k}</span>
+            <strong style={{ fontSize: 13 }}>{v}</strong>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn-gold" onClick={() => {
+        if (session.phone) { void navigator.clipboard?.writeText(session.phone); toast$('Account number copied!'); }
+      }}>Copy account number</button>
+    </div>,
+    { nav: true }
+  );
+
+  /* ════════ TOP UP ════════ */
+  if (view === 'topup' && session) return shell(
+    <div>
+      <h2 style={{ marginBottom: 4 }}>Top up wallet</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Add money to your Nakconel wallet</p>
+      <label className="field-label">Amount (₦)</label>
+      <div className="amount-box" style={{ marginBottom: 16 }}>
+        <span className="currency">₦</span>
+        <input value={topupAmt} onChange={e => setTopupAmt(e.target.value)} placeholder="0.00"
+          inputMode="decimal" style={{ border: 'none', background: 'transparent', color: 'var(--ink)', fontSize: 22, fontWeight: 700, padding: '12px 10px', width: '100%', outline: 'none' }} />
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[500, 1000, 2000, 5000, 10000].map(a => (
+          <button key={a} type="button" className="btn-ghost" style={{ flex: 'none', padding: '8px 14px', fontSize: 13 }}
+            onClick={() => setTopupAmt(String(a))}>₦{a.toLocaleString()}</button>
+        ))}
+      </div>
+      <button type="button" className="btn-gold"
+        disabled={topupLoading || !topupAmt || parseFloat(topupAmt) < 100 || !session.accountId}
+        onClick={async () => {
+          if (!session.accountId) return;
+          setTopupLoading(true);
+          try {
+            const r = await apiTopUp(session.accountId, parseFloat(topupAmt));
+            if (r.mode === 'paystack' && r.authorizationUrl) {
+              window.location.href = r.authorizationUrl;
+            } else {
+              toast$(r.message ?? 'Wallet credited!');
+              setTopupAmt('');
+              refreshBalance(session.accountId);
+              setView('home');
+            }
+          } catch (e: unknown) {
+            toast$(e instanceof Error ? e.message : 'Top-up failed');
+          } finally { setTopupLoading(false); }
+        }}>
+        {topupLoading ? 'Processing…' : `Add ${topupAmt ? fmt(parseFloat(topupAmt)) : '₦0'} to wallet`}
+      </button>
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5, textAlign: 'center' }}>
+        Demo mode: top-ups are credited immediately without a payment provider.
+      </p>
+    </div>,
+    { nav: true }
+  );
+
+  /* ════════ HISTORY ════════ */
+  if (view === 'history' && session) return shell(
+    <div>
+      <h2 style={{ marginBottom: 4 }}>Transaction history</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>All your recent transfers</p>
+      {txLoading && txs.length === 0
+        ? <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 32 }}>Loading…</p>
+        : txs.length === 0
+          ? <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 32 }}>No transactions yet.</p>
+          : txs.map(t => (
+              <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 3 }}>{t.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.accountNumber} · {new Date(t.createdAt).toLocaleDateString('en-NG')}</div>
+                  {t.note && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.note}</div>}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--maroon)' }}>-{fmt(t.amount)}</div>
+                  <StatusBadge status={t.status} />
+                </div>
+              </div>
+            ))
+      }
+      {txHasMore && (
+        <button type="button" className="btn-ghost" style={{ marginTop: 16, width: '100%' }}
+          disabled={txLoading} onClick={() => txCursor && loadHistory(txCursor)}>
+          {txLoading ? 'Loading…' : 'Load more'}
+        </button>
+      )}
+    </div>,
+    { nav: true }
+  );
+
+  /* ════════ VIRTUAL CARD ════════ */
+  if (view === 'card' && session) return shell(
+    <div>
+      <h2 style={{ marginBottom: 4 }}>Virtual card</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Your Nakconel virtual debit card</p>
+
+      {/* Card face */}
+      <div className="card-face" style={{ marginBottom: 24 }}>
+        <div style={{ position: 'absolute', top: 18, right: 20, fontWeight: 900, fontStyle: 'italic', fontSize: 22, color: '#fff8e9', opacity: .85 }}>VISA</div>
+        <div style={{ width: 36, height: 26, borderRadius: 5, background: 'rgba(255,248,233,.28)', marginBottom: 28 }} />
+        <div style={{ letterSpacing: '.14em', fontSize: 18, fontWeight: 600, marginBottom: 16 }}>
+          •••• •••• •••• {(session.id.slice(-4).toUpperCase())}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, opacity: .8 }}>
+          <div><div style={{ fontSize: 10, marginBottom: 2, opacity: .7 }}>CARD HOLDER</div>{session.fullName.toUpperCase()}</div>
+          <div><div style={{ fontSize: 10, marginBottom: 2, opacity: .7 }}>EXPIRES</div>12/28</div>
+        </div>
+      </div>
+
+      <div style={{ background: 'rgba(197,155,68,.08)', border: '1px solid rgba(197,155,68,.3)', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.6 }}>
+          <strong>Demo virtual card.</strong> This card number is for display only.
+          Physical and live virtual cards will be issued when a licensed card issuer is connected.
+        </p>
+      </div>
+
+      <div className="glass" style={{ padding: 16 }}>
+        {[
+          ['Account name', session.fullName],
+          ['Account number', session.phone ?? 'N/A'],
+          ['Card status', session.kycStatus === 'VERIFIED' ? 'Active (KYC verified)' : 'KYC required'],
+          ['Daily limit', session.kycStatus === 'VERIFIED' ? '₦500,000' : '₦50,000'],
+          ['Card type', 'Debit · Naira · Virtual'],
+        ].map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>{k}</span>
+            <strong style={{ fontSize: 13 }}>{v}</strong>
+          </div>
+        ))}
+      </div>
+
+      {session.kycStatus !== 'VERIFIED' && (
+        <button type="button" className="btn-gold" style={{ marginTop: 16 }} onClick={() => setView('kyc')}>
+          Complete KYC to activate card
+        </button>
+      )}
+    </div>,
+    { nav: true }
+  );
+
+  /* ════════ KYC ════════ */
+  if (view === 'kyc' && session) return shell(
+    <div>
+      <h2 style={{ marginBottom: 4 }}>Identity verification</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Complete KYC to unlock higher limits and full features</p>
+
+      {kycLoading ? (
+        <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 24 }}>Loading…</p>
+      ) : kycStatus === 'VERIFIED' ? (
+        <div style={{ textAlign: 'center', padding: 24 }}>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(40,119,78,.12)', border: '2px solid var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <IconCheck size={40} color="var(--ok)" />
+          </div>
+          <h3 style={{ color: 'var(--ok)', marginBottom: 8 }}>Identity verified</h3>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Your account has been fully verified. All features and limits are unlocked.</p>
+        </div>
+      ) : kycStep === 'done' ? (
+        <div style={{ textAlign: 'center', padding: 24 }}>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(40,119,78,.12)', border: '2px solid var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <IconCheck size={40} color="var(--ok)" />
+          </div>
+          <h3 style={{ marginBottom: 8 }}>Submission received</h3>
+          <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>Your KYC submission is being reviewed. This usually takes a few minutes.</p>
+          <button type="button" className="btn-gold" style={{ marginTop: 20 }} onClick={() => setView('home')}>Back to home</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {kycSub && (
+            <div style={{ background: kycSub.status === 'REJECTED' ? 'rgba(185,69,66,.08)' : 'rgba(197,155,68,.08)', border: `1px solid ${kycSub.status === 'REJECTED' ? 'rgba(185,69,66,.3)' : 'rgba(197,155,68,.3)'}`, borderRadius: 12, padding: 12, marginBottom: 4 }}>
+              <p style={{ fontSize: 13 }}>Previous submission: <StatusBadge status={kycSub.status} /></p>
+            </div>
+          )}
+
+          <label className="field-label">Full name (as on ID)</label>
+          <input className="input" value={kycForm.fullName} onChange={e => setKycForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Legal full name" />
+
+          <label className="field-label">Date of birth</label>
+          <input className="input" type="date" value={kycForm.dateOfBirth} onChange={e => setKycForm(f => ({ ...f, dateOfBirth: e.target.value }))} />
+
+          <label className="field-label">Phone number</label>
+          <input className="input" type="tel" value={kycForm.phone} onChange={e => setKycForm(f => ({ ...f, phone: e.target.value }))} placeholder="08012345678" />
+
+          <label className="field-label">Residential address</label>
+          <input className="input" value={kycForm.address} onChange={e => setKycForm(f => ({ ...f, address: e.target.value }))} placeholder="Street, City, State" />
+
+          <label className="field-label">BVN (Bank Verification Number)</label>
+          <input className="input" inputMode="numeric" maxLength={11} value={kycForm.bvn}
+            onChange={e => setKycForm(f => ({ ...f, bvn: e.target.value.replace(/\D/g,'').slice(0,11) }))}
+            placeholder="11-digit BVN · Dial *565*0#" />
+
+          <label className="field-label">ID type</label>
+          <select className="input" value={kycForm.idType} onChange={e => setKycForm(f => ({ ...f, idType: e.target.value as typeof f.idType }))}>
+            <option value="NIN">National ID (NIN)</option>
+            <option value="PASSPORT">International Passport</option>
+            <option value="DRIVERS_LICENCE">Driver's Licence</option>
+            <option value="VOTERS_CARD">Voter's Card</option>
+          </select>
+
+          <button type="button" className="btn-gold" style={{ marginTop: 6 }}
+            disabled={kycLoading || !kycForm.fullName || !kycForm.dateOfBirth || !kycForm.phone || !kycForm.address || kycForm.bvn.length < 11}
+            onClick={async () => {
+              setKycLoading(true);
+              try {
+                await apiKycSubmit(kycForm);
+                setKycStep('done');
+              } catch (e: unknown) {
+                toast$(e instanceof Error ? e.message : 'KYC submission failed');
+              } finally { setKycLoading(false); }
+            }}>
+            {kycLoading ? 'Submitting…' : 'Submit KYC'}
+          </button>
+        </div>
+      )}
+    </div>,
+    { nav: true }
+  );
+
+  /* ════════ ACCOUNT ════════ */
+  if (view === 'account' && session) return shell(
+    <div>
+      <div style={{ textAlign: 'center', paddingTop: 16, paddingBottom: 24 }}>
+        {(() => {
+          const selfie = typeof localStorage !== 'undefined' ? (() => { try { return localStorage.getItem('nkc_selfie'); } catch { return null; } })() : null;
+          return selfie
+            ? <img src={selfie} alt="Profile" style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', margin: '0 auto 12px', display: 'block' }} />
+            : <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--surface)', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: 'var(--maroon)', margin: '0 auto 12px' }}>{session.fullName.trim()[0]?.toUpperCase()}</div>;
+        })()}
+        <h2 style={{ fontSize: 20, marginBottom: 4 }}>{session.fullName}</h2>
+        <p style={{ fontSize: 13, color: 'var(--muted)' }}>{session.email}</p>
+        {session.phone && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{session.phone}</p>}
+        <div style={{ marginTop: 8 }}><StatusBadge status={session.kycStatus ?? 'NONE'} /></div>
+      </div>
+      <div className="glass" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        {[
+          { label: 'Transaction history', action: () => setView('history') },
+          { label: 'Virtual card',        action: () => setView('card') },
+          { label: 'KYC verification',    action: () => setView('kyc') },
+          { label: 'Business banking',    action: () => setView('business') },
+          { label: 'International transfers', action: () => setView('international') },
+        ].map(({ label, action }) => (
+          <button key={label} type="button" onClick={action}
+            style={{ width: '100%', padding: '14px 18px', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, color: 'var(--ink)', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {label} <IconArrowRight size={16} />
+          </button>
+        ))}
+      </div>
+      <button type="button" className="btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(185,69,66,.3)', marginTop: 8 }} onClick={logout}>
+        Sign out
+      </button>
+    </div>,
+    { nav: true }
+  );
+
+  return shell(<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading…</div>);
 }

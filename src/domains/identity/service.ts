@@ -3,30 +3,55 @@ import { hashPassword, hashPin, verifyPassword, verifyPin } from '@/lib/crypto';
 import { writeAudit } from '@/lib/audit';
 import { postJournal } from '@/domains/ledger/service';
 
+function normalizePhone(raw: string): string {
+  let d = raw.replace(/\D/g, '');
+  if (d.startsWith('234') && d.length >= 13) d = '0' + d.slice(3);
+  if (d.length === 10 && d[0] !== '0') d = '0' + d;
+  return d.slice(0, 11);
+}
+
 export async function registerUser(input: {
-  email: string;
+  phone: string;
   fullName: string;
+  email?: string;
   password: string;
   pin: string;
-  phone?: string;
+  bvn?: string;
+  dateOfBirth?: string;
+  address?: string;
 }) {
   if (!/^\d{4}$/.test(input.pin)) throw new Error('PIN must be 4 digits');
-  if (input.password.length < 6) throw new Error('Password too short');
+  if (input.password.length < 6) throw new Error('Password must be at least 6 characters');
 
-  const existing = await prisma.user.findUnique({ where: { email: input.email } });
-  if (existing) throw new Error('Email already registered');
+  const phone = normalizePhone(input.phone);
+  if (!/^0[7-9]\d{9}$/.test(phone)) {
+    throw new Error('Enter a valid Nigerian mobile number (e.g. 08012345678)');
+  }
+
+  // Check phone uniqueness
+  const existingPhone = await prisma.user.findFirst({ where: { phone } });
+  if (existingPhone) throw new Error('This phone number is already registered');
+
+  // Check email uniqueness if provided
+  if (input.email) {
+    const existingEmail = await prisma.user.findUnique({
+      where: { email: input.email.toLowerCase().trim() },
+    });
+    if (existingEmail) throw new Error('This email is already registered');
+  }
 
   const passwordHash = await hashPassword(input.password);
   const pinHash = await hashPin(input.pin);
 
   const user = await prisma.user.create({
     data: {
-      email: input.email,
-      fullName: input.fullName,
-      phone: input.phone || null,
+      email: input.email?.toLowerCase().trim() ?? `${phone}@nakconel.app`,
+      fullName: input.fullName.trim(),
+      phone,
+      address: input.address ?? null,
       passwordHash,
       pinHash,
-      kycStatus: input.phone ? 'PENDING' : 'NONE',
+      kycStatus: 'NONE',
       accounts: {
         create: { currency: 'NGN', status: 'ACTIVE' },
       },
@@ -45,16 +70,25 @@ export async function registerUser(input: {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
+    phone: user.phone ?? undefined,
     accountId: user.accounts[0]?.id,
+    kycStatus: user.kycStatus,
   };
 }
 
-export async function loginUser(email: string, password: string) {
-  const user = await prisma.user.findUnique({
-    where: { email },
+export async function loginUser(emailOrPhone: string, password: string) {
+  // Accept either email or phone number
+  const isPhone = !emailOrPhone.includes('@');
+  const phone = isPhone ? normalizePhone(emailOrPhone) : null;
+
+  const user = await prisma.user.findFirst({
+    where: isPhone
+      ? { phone: phone ?? undefined }
+      : { email: emailOrPhone.toLowerCase().trim() },
     include: { accounts: true },
   });
   if (!user) throw new Error('Invalid credentials');
+
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) throw new Error('Invalid credentials');
 
@@ -69,6 +103,7 @@ export async function loginUser(email: string, password: string) {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
+    phone: user.phone ?? undefined,
     kycStatus: user.kycStatus,
     accountId: user.accounts[0]?.id,
   };
@@ -89,15 +124,13 @@ export async function changePin(userId: string, oldPin: string, newPin: string) 
   await writeAudit({ userId, action: 'PIN_CHANGED', resource: 'user', resourceId: userId });
 }
 
-/** Credit wallet (top-up) via ledger */
+/** Credit wallet after a confirmed top-up payment */
 export async function topUpAccount(input: {
   userId: string;
   accountId: string;
   amountKobo: number;
   reference: string;
-  pinVerified: boolean;
 }) {
-  if (!input.pinVerified) throw new Error('PIN required');
   if (input.amountKobo < 10000) throw new Error('Minimum top-up is ₦100');
 
   const account = await prisma.account.findFirst({

@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listInternationalTransfers } from '@/domains/international/service';
+import { getAuthenticatedUserId } from '@/lib/session';
 
 export async function GET(req: NextRequest) {
+  const userId = getAuthenticatedUserId(req);
+  if (!userId) {
+    return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+  }
   try {
-    const userId = req.nextUrl.searchParams.get('userId');
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'userId required' }, { status: 400 });
-    }
     const data = await listInternationalTransfers(userId);
     return NextResponse.json({ success: true, data });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'List failed';
-    return NextResponse.json({ success: false, error: msg }, { status: 400 });
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 

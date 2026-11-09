@@ -310,7 +310,7 @@ export default function BusinessView({ fullName, onToast }: Props) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600 }}>{inv.invoiceNumber}</span>
-                      <StatusPill status={inv.status} verified={inv.paymentProvider === 'PAYSTACK_TEST'} />
+                      <StatusPill status={inv.status} />
                     </div>
                     <div style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)', marginTop: 4 }}>{inv.customerName}</div>
                     <div style={{ fontWeight: 700, color: '#f0d78c', marginTop: 6 }}>{formatNGN(inv.amount)}</div>

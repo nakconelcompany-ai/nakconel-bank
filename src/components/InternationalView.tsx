@@ -49,7 +49,7 @@ export default function InternationalView({ userId, onToast }: Props) {
   const load = useCallback(async () => {
     const [corridorsResult, historyResult] = await Promise.allSettled([
       apiIntlCorridors(),
-      apiListIntlTransfers(userId),
+      apiListIntlTransfers(),
     ]);
 
     if (corridorsResult.status === 'fulfilled') {

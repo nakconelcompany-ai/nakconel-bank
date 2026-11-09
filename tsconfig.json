@@ -14,7 +14,10 @@
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "@prisma/client": ["./node_modules/.prisma/client"]
+    }
   },
   "include": [
     "next-env.d.ts",
@@ -24,5 +27,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "repo-pull", "nakconel-bank-new"]
 }

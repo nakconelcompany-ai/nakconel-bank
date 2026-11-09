@@ -4,6 +4,7 @@ export type Session = {
   id: string;
   email: string;
   fullName: string;
+  phone?: string;
   accountId?: string;
   kycStatus?: string;
 };
@@ -14,80 +15,88 @@ type ApiResponse<T> = {
   error?: string;
 };
 
-async function readApiResponse<T>(res: Response): Promise<ApiResponse<T>> {
+async function call<T>(res: Response): Promise<T> {
   const body = await res.text();
-  try {
-    return JSON.parse(body) as ApiResponse<T>;
-  } catch {
-    if (!res.ok) {
-      throw new Error(`Request failed with HTTP ${res.status}. Please try again.`);
-    }
-    throw new Error('The server returned an invalid response. Please try again.');
+  let json: ApiResponse<T>;
+  try { json = JSON.parse(body) as ApiResponse<T>; }
+  catch {
+    if (!res.ok) throw new Error(`Request failed (HTTP ${res.status}).`);
+    throw new Error('The server returned an invalid response.');
   }
+  if (!res.ok || !json.success) throw new Error(json.error || `Request failed (HTTP ${res.status}).`);
+  return json.data as T;
 }
 
+/* ── Auth ── */
 export async function apiRegister(body: {
-  email: string;
+  phone: string;
   fullName: string;
+  email?: string;
   password: string;
   pin: string;
-  phone?: string;
+  bvn?: string;
+  dateOfBirth?: string;
 }) {
   const res = await fetch(`${base}/api/v1/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await readApiResponse<{ id: string; email: string; fullName: string; accountId?: string }>(res);
-  if (!res.ok || !json.success) throw new Error(json.error || 'Registration failed');
-  return json.data as { id: string; email: string; fullName: string; accountId?: string };
+  return call<Session>(res);
 }
 
-export async function apiLogin(email: string, password: string) {
+export async function apiLogin(phoneOrEmail: string, password: string) {
   const res = await fetch(`${base}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: phoneOrEmail, password }),
   });
-  const json = await readApiResponse<Session>(res);
-  if (!res.ok || !json.success) throw new Error(json.error || 'Login failed');
-  return json.data as Session;
+  return call<Session>(res);
 }
 
 export async function apiSession() {
   const res = await fetch('/api/v1/auth/session');
-  const json = await readApiResponse<Session>(res);
-  if (!res.ok || !json.success) throw new Error(json.error || 'Session validation failed');
-  return json.data as Session;
+  return call<Session>(res);
 }
 
 export async function apiLogout() {
   const res = await fetch('/api/v1/auth/logout', { method: 'POST' });
-  const json = await readApiResponse<{ success: boolean }>(res);
-  if (!res.ok || !json.success) throw new Error(json.error || 'Logout failed');
+  return call<{ success: boolean }>(res);
 }
 
+/* ── Balance ── */
 export async function apiBalance(accountId: string) {
-  const res = await fetch(
-    `${base}/api/v1/accounts/balance?accountId=${encodeURIComponent(accountId)}`
-  );
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Balance failed');
-  return json.data as {
+  const res = await fetch(`${base}/api/v1/accounts/balance?accountId=${encodeURIComponent(accountId)}`);
+  return call<{
     accountId: string;
     balanceKobo: number;
     balance: number;
     formatted: string;
     currency: string;
-  };
+  }>(res);
 }
 
+/* ── Transfers ── */
+export type TxItem = {
+  id: string;
+  type: 'send' | 'receive' | 'topup';
+  title: string;
+  accountNumber?: string;
+  amount: number;
+  amountKobo: number;
+  fee?: number;
+  currency: string;
+  status: string;
+  note?: string;
+  createdAt: string;
+};
+
 export async function apiTransfer(input: {
-  userId: string;
   fromAccountId: string;
   amount: number;
   beneficiaryName: string;
   beneficiaryAccount: string;
+  bankCode?: string;
   note?: string;
   pin: string;
   idempotencyKey: string;
@@ -100,27 +109,70 @@ export async function apiTransfer(input: {
     },
     body: JSON.stringify(input),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Transfer failed');
-  return json.data;
+  return call<TxItem>(res);
 }
 
+export async function apiTransferHistory(accountId: string, cursor?: string) {
+  const params = new URLSearchParams({ accountId, limit: '20' });
+  if (cursor) params.set('cursor', cursor);
+  const res = await fetch(`${base}/api/v1/transfers?${params}`);
+  return call<{ items: TxItem[]; hasMore: boolean; nextCursor: string | null }>(res);
+}
+
+/* ── Top-up ── */
+export async function apiTopUp(accountId: string, amountNgn: number) {
+  const res = await fetch(`${base}/api/v1/accounts/topup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accountId, amountNgn }),
+  });
+  return call<{
+    mode: 'paystack' | 'demo';
+    authorizationUrl?: string;
+    reference?: string;
+    message?: string;
+    amountKobo?: number;
+  }>(res);
+}
+
+/* ── KYC ── */
+export async function apiKycStatus() {
+  const res = await fetch('/api/v1/kyc');
+  return call<{
+    kycStatus: string;
+    latestSubmission: { id: string; status: string; idType: string; createdAt: string } | null;
+  }>(res);
+}
+
+export async function apiKycSubmit(body: {
+  fullName: string;
+  dateOfBirth: string;
+  phone: string;
+  address: string;
+  bvn: string;
+  idType: 'NIN' | 'PASSPORT' | 'DRIVERS_LICENCE' | 'VOTERS_CARD';
+}) {
+  const res = await fetch('/api/v1/kyc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return call<{ id: string; status: string; message: string }>(res);
+}
+
+/* ── Business ── */
 export async function apiBizProfile(businessName?: string) {
   const res = await fetch('/api/v1/business/profile', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ businessName }),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Business profile failed');
-  return json.data;
+  return call<{ id: string; businessName: string }>(res);
 }
 
 export async function apiBizAnalytics() {
   const res = await fetch('/api/v1/business/analytics');
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Analytics failed');
-  return json.data as {
+  return call<{
     businessName: string | null;
     totalCollected: number;
     totalExpenses: number;
@@ -130,7 +182,7 @@ export async function apiBizAnalytics() {
     activeLinks: number;
     teamCount: number;
     collectionCount: number;
-  };
+  }>(res);
 }
 
 export async function apiCreateInvoice(body: {
@@ -144,45 +196,36 @@ export async function apiCreateInvoice(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Invoice failed');
-  return json.data;
+  return call<{ id: string; invoiceNumber: string }>(res);
 }
 
 export async function apiListInvoices() {
   const res = await fetch('/api/v1/business/invoices');
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'List invoices failed');
-  return json.data as Array<{
+  return call<Array<{
     id: string;
     invoiceNumber: string;
     customerName: string;
     customerEmail: string | null;
     amount: number;
-    paymentProvider: string;
     status: string;
     createdAt: string;
-  }>;
+  }>>(res);
 }
 
 export async function apiListPaymentLinks() {
   const res = await fetch('/api/v1/business/payment-links');
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'List links failed');
-  return json.data as Array<{
+  return call<Array<{
     id: string;
     title: string;
     amount: number | null;
     status: string;
     collectCount: number;
-  }>;
+  }>>(res);
 }
 
 export async function apiListCollections() {
   const res = await fetch('/api/v1/business/collections');
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Collections failed');
-  return json.data as Array<{
+  return call<Array<{
     id: string;
     reference: string;
     amount: number;
@@ -191,27 +234,25 @@ export async function apiListCollections() {
     payerName: string | null;
     status: string;
     createdAt: string;
-  }>;
+  }>>(res);
 }
 
-export async function apiStartBusinessCollection(input:
-  | { source: 'INVOICE'; sourceId: string }
-  | { source: 'DIRECT'; amount: number; payerName?: string; payerEmail: string }
+export async function apiStartBusinessCollection(
+  input: { source: 'INVOICE'; sourceId: string }
+       | { source: 'DIRECT'; amount: number; payerName?: string; payerEmail: string }
 ) {
   const res = await fetch('/api/v1/business/collections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Could not start collection');
-  return json.data as {
+  return call<{
     reference: string;
     authorizationUrl: string;
     amount: number;
     currency: string;
     status: string;
-  };
+  }>(res);
 }
 
 export async function apiCreateExpense(body: {
@@ -225,16 +266,12 @@ export async function apiCreateExpense(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Expense failed');
-  return json.data;
+  return call<{ id: string }>(res);
 }
 
 export async function apiListExpenses() {
   const res = await fetch('/api/v1/business/expenses');
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'List expenses failed');
-  return json.data as Array<{ id: string; category: string; title: string; amount: number; spentAt: string }>;
+  return call<Array<{ id: string; category: string; title: string; amount: number; spentAt: string }>>(res);
 }
 
 export async function apiAddTeamMember(body: {
@@ -248,36 +285,15 @@ export async function apiAddTeamMember(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Team member failed');
-  return json.data;
+  return call<{ id: string }>(res);
 }
 
 export async function apiListTeam() {
   const res = await fetch('/api/v1/business/team');
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'List team failed');
-  return json.data as Array<{ id: string; fullName: string; email: string; role: string; salary: number; status: string }>;
+  return call<Array<{ id: string; fullName: string; email: string; role: string; salary: number; status: string }>>(res);
 }
 
-export async function apiPayTeamMember(body: {
-  userId: string;
-  teamMemberId: string;
-  amount?: number;
-  period?: string;
-}) {
-  const res = await fetch('/api/v1/business/team', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, action: 'pay' }),
-  });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Team pay failed');
-  return json.data;
-}
-
-// Phase 3 International
-
+/* ── International ── */
 export type IntlCorridor = {
   id: string;
   label: string;
@@ -306,28 +322,19 @@ export type IntlQuote = {
 
 export async function apiIntlCorridors() {
   const res = await fetch(`${base}/api/v1/international/quote`);
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Corridors failed');
-  return json.data as IntlCorridor[];
+  return call<IntlCorridor[]>(res);
 }
 
-export async function apiIntlQuote(body: {
-  corridorId: string;
-  countryCode: string;
-  amountNgn: number;
-}) {
+export async function apiIntlQuote(body: { corridorId: string; countryCode: string; amountNgn: number }) {
   const res = await fetch(`${base}/api/v1/international/quote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'Quote failed');
-  return json.data as IntlQuote;
+  return call<IntlQuote>(res);
 }
 
 export async function apiIntlTransfer(input: {
-  userId: string;
   fromAccountId: string;
   corridorId: string;
   countryCode: string;
@@ -347,9 +354,7 @@ export async function apiIntlTransfer(input: {
     },
     body: JSON.stringify(input),
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'International transfer failed');
-  return json.data as {
+  return call<{
     id: string;
     status: string;
     corridor: string;
@@ -357,21 +362,16 @@ export async function apiIntlTransfer(input: {
     currency: string;
     amountNgn: number;
     feeNgn: number;
-    totalDebitNgn: number;
-    fxRate: number;
     amountForeign: number;
+    fxRate: number;
     beneficiaryName: string;
     settlementNote: string | null;
-  };
+  }>(res);
 }
 
-export async function apiListIntlTransfers(userId: string) {
-  const res = await fetch(
-    `${base}/api/v1/international/transfers?userId=${encodeURIComponent(userId)}`
-  );
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error || 'List failed');
-  return json.data as Array<{
+export async function apiListIntlTransfers() {
+  const res = await fetch(`${base}/api/v1/international/transfers`);
+  return call<Array<{
     id: string;
     status: string;
     corridor: string;
@@ -383,5 +383,5 @@ export async function apiListIntlTransfers(userId: string) {
     fxRate: number;
     beneficiaryName: string;
     createdAt: string;
-  }>;
+  }>>(res);
 }
