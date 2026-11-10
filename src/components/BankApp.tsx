@@ -264,17 +264,40 @@ export default function BankApp() {
 
   /* ════════ LANDING ════════ */
   if (view === 'landing') {
-    if (restoring) return shell(<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Opening your secure session…</div>);
-    return shell(
-      <div className="welcome-screen">
-        <section className="welcome-hero">
-          <Logo size={82} />
+    if (restoring) return (
+      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <p style={{ color: 'var(--muted)', fontSize: 14 }}>Opening your secure session…</p>
+      </div>
+    );
+    return (
+      <div className="landing-screen">
+        {/* Header */}
+        <header className="brand-header" style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 500, zIndex: 40 }}>
+          <Logo size={40} className="brand-logo" />
+          <div className="brand-copy">
+            <div className="brand-name">NAKCONEL</div>
+            <div className="brand-bank">BANK</div>
+          </div>
+          <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
+        </header>
+        {/* Hero card */}
+        <div className="landing-hero" style={{ marginTop: 72 }}>
+          <Logo size={80} />
           <p className="welcome-kicker">Secure · Simple · Global</p>
           <h1>Banking for today,<br />building for tomorrow.</h1>
           <p>Everyday money and business tools, designed to move with you.</p>
-        </section>
-        <button type="button" className="btn-gold" style={{ minHeight: 50 }} onClick={() => { setAuthTab('signup'); setView('auth'); }}>Get started</button>
-        <button type="button" className="btn-outline" style={{ marginTop: 10, minHeight: 48 }} onClick={() => { setAuthTab('login'); setView('auth'); }}>I already have an account</button>
+        </div>
+        {/* Buttons */}
+        <div className="landing-actions">
+          <button type="button" className="btn-gold"
+            onClick={() => { setAuthTab('signup'); setView('auth'); }}>
+            Get started
+          </button>
+          <button type="button" className="btn-outline"
+            onClick={() => { setAuthTab('login'); setView('auth'); }}>
+            I already have an account
+          </button>
+        </div>
       </div>
     );
   }
