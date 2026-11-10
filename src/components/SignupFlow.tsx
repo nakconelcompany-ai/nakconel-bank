@@ -12,40 +12,35 @@ function normalizePhone(raw: string): string {
   if (d.length === 10 && d[0] !== '0') d = '0' + d;
   return d.slice(0, 11);
 }
-
 function isValidNgPhone(raw: string) {
   return /^0[7-9]\d{9}$/.test(normalizePhone(raw));
 }
+function isValidEmail(e: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+}
 
 /* ─── types ─── */
-type SignupStep =
-  | 'phone'       // 1. Enter phone
-  | 'otp'         // 2. OTP verification (simulated — shows code in UI)
-  | 'identity'    // 3. Identity: BVN / NIN
-  | 'face'        // 4. Facial verification
-  | 'profile'     // 5. Full name, email, DOB
-  | 'password'    // 6. Set password & 4-digit PIN
-  | 'success';    // Done
-
-type LoginStep = 'phone' | 'password';
+type SignupStep = 'phone-email' | 'otp' | 'identity' | 'face' | 'profile' | 'password' | 'success';
+type LoginStep  = 'phone' | 'password';
+type ForgotStep = 'email' | 'otp' | 'new-password' | 'done';
 
 type Props = {
-  onSuccess: (session: Session) => void;
-  onToast:   (m: string) => void;
-  onBack:    () => void;
-  initialTab?: 'login' | 'signup';
+  onSuccess:    (session: Session) => void;
+  onToast:      (m: string) => void;
+  onBack:       () => void;
+  initialTab?:  'login' | 'signup';
 };
 
 /* ─── face stages ─── */
 const FACE_STAGES = [
-  { key: 'center', prompt: 'Position your face in the centre of the frame', hold: 2200 },
-  { key: 'left',   prompt: 'Slowly turn your head to the left',             hold: 2000 },
-  { key: 'right',  prompt: 'Now turn your head to the right',               hold: 2000 },
-  { key: 'still',  prompt: 'Look straight ahead and hold still',            hold: 1800 },
-  { key: 'done',   prompt: 'Face verified — you can continue',              hold: 600  },
+  { prompt: 'Position your face in the centre of the frame', hold: 2200 },
+  { prompt: 'Slowly turn your head to the left',             hold: 2000 },
+  { prompt: 'Now turn your head to the right',               hold: 2000 },
+  { prompt: 'Look straight ahead and hold still',            hold: 1800 },
+  { prompt: 'Face verified — you can continue',              hold: 600  },
 ] as const;
 
-/* ─── OTP box component ─── */
+/* ─── OTP boxes ─── */
 function OtpBoxes({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const handleKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -55,8 +50,7 @@ function OtpBoxes({ value, onChange }: { value: string; onChange: (v: string) =>
     const digit = v.replace(/\D/g, '').slice(-1);
     const arr = value.padEnd(6, ' ').split('');
     arr[i] = digit;
-    const next = arr.join('').trimEnd();
-    onChange(next);
+    onChange(arr.join('').trimEnd());
     if (digit && i < 5) refs.current[i + 1]?.focus();
   };
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -64,90 +58,57 @@ function OtpBoxes({ value, onChange }: { value: string; onChange: (v: string) =>
     if (digits) { onChange(digits); refs.current[Math.min(digits.length, 5)]?.focus(); e.preventDefault(); }
   };
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 8, margin: '16px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 8, margin: '16px 0', maxWidth: 300, width: '100%', alignSelf: 'center' }}>
       {[0,1,2,3,4,5].map(i => (
-        <input
-          key={i}
-          ref={el => { refs.current[i] = el; }}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={value[i] ?? ''}
+        <input key={i} ref={el => { refs.current[i] = el; }}
+          type="text" inputMode="numeric" maxLength={1}
+          value={value[i] ?? ''} onPaste={handlePaste}
           onChange={e => handleChange(i, e.target.value)}
           onKeyDown={e => handleKey(i, e)}
-          onPaste={handlePaste}
-          autoComplete="one-time-code"
-          aria-label={`Digit ${i + 1}`}
-          style={{
-            textAlign: 'center',
-            fontSize: '1.4rem',
-            fontWeight: 700,
-            padding: '10px 2px',
-            borderRadius: 10,
-            border: '1.5px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--ink)',
-            outline: 'none',
-            width: '100%',
-          }}
-        />
+          autoComplete="one-time-code" aria-label={`Digit ${i + 1}`}
+          style={{ textAlign: 'center', fontSize: '1.3rem', fontWeight: 700, padding: '10px 2px',
+            borderRadius: 10, border: '1.5px solid var(--border)', background: 'var(--surface)',
+            color: 'var(--ink)', outline: 'none', width: '100%' }} />
       ))}
     </div>
   );
 }
 
-/* ─── PIN dots ─── */
+/* ─── PIN dots + keypad ─── */
 function PinDots({ value }: { value: string }) {
   return (
     <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '16px 0' }}>
       {[0,1,2,3].map(i => (
-        <div key={i} style={{
-          width: 16, height: 16, borderRadius: '50%',
-          border: '2px solid var(--maroon)',
-          background: i < value.length ? 'var(--maroon)' : 'transparent',
-          transition: 'background .15s',
-        }} />
+        <div key={i} style={{ width: 16, height: 16, borderRadius: '50%',
+          border: '2px solid var(--maroon)', background: i < value.length ? 'var(--maroon)' : 'transparent',
+          transition: 'background .15s' }} />
       ))}
     </div>
   );
 }
-
-/* ─── PIN keypad ─── */
-function PinKeypad({ value, onChange, maxLen = 4 }: { value: string; onChange: (v: string) => void; maxLen?: number }) {
-  const press = (k: string) =>
-    onChange(k === '⌫' ? value.slice(0, -1) : value.length < maxLen ? value + k : value);
-  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+function PinKeypad({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const press = (k: string) => onChange(k === '⌫' ? value.slice(0, -1) : value.length < 4 ? value + k : value);
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, maxWidth: 280, margin: '0 auto', width: '100%' }}>
-      {keys.map((k, i) => k ? (
-        <button
-          key={i}
-          type="button"
-          aria-label={k === '⌫' ? 'Delete' : k}
-          onClick={() => press(k)}
-          style={{
-            padding: '15px 0', fontSize: '1.2rem', fontWeight: 700,
-            borderRadius: 12, border: '1px solid var(--border)',
-            background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer',
-          }}
-        >{k}</button>
-      ) : <span key={i} />)}
+      {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => k
+        ? <button key={i} type="button" onClick={() => press(k)}
+            style={{ padding: '15px 0', fontSize: '1.2rem', fontWeight: 700, borderRadius: 12,
+              border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer' }}>{k}</button>
+        : <span key={i} />
+      )}
     </div>
   );
 }
 
-/* ─── progress dots ─── */
-const SIGNUP_STEPS: SignupStep[] = ['phone','otp','identity','face','profile','password'];
+/* ─── step progress dots ─── */
+const SIGNUP_STEPS: SignupStep[] = ['phone-email','otp','identity','face','profile','password'];
 function StepDots({ current }: { current: SignupStep }) {
   const idx = SIGNUP_STEPS.indexOf(current);
   return (
     <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 18 }}>
       {SIGNUP_STEPS.map((_, i) => (
-        <div key={i} style={{
-          width: i === idx ? 18 : 8, height: 8, borderRadius: 999,
-          background: i <= idx ? 'var(--gold)' : 'rgba(101,23,25,.15)',
-          transition: 'width .2s, background .2s',
-        }} />
+        <div key={i} style={{ width: i === idx ? 18 : 8, height: 8, borderRadius: 999, transition: 'width .2s, background .2s',
+          background: i <= idx ? 'var(--gold)' : 'rgba(101,23,25,.15)' }} />
       ))}
     </div>
   );
@@ -157,67 +118,69 @@ function StepDots({ current }: { current: SignupStep }) {
    Main component
 ═══════════════════════════════════════ */
 export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 'signup' }: Props) {
-  const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
+  const [tab, setTab]     = useState<'login' | 'signup'>(initialTab);
+  const [loading, setLoading] = useState(false);
 
   /* ── signup state ── */
-  const [sStep, setSStep] = useState<SignupStep>('phone');
-  const [sPhone, setSPhone]       = useState('');
-  const [sOtp, setSOtp]           = useState('');
-  const [sOtpCode, setSOtpCode]   = useState('');           // simulated code
-  const [sBvn, setSBvn]           = useState('');
-  const [sNin, setSNin]           = useState('');
-  const [sIdType, setSIdType]     = useState<'bvn'|'nin'>('bvn');
-  const [sFaceDone, setSFaceDone] = useState(false);
+  const [sStep, setSStep]       = useState<SignupStep>('phone-email');
+  const [sPhone, setSPhone]     = useState('');
+  const [sEmail, setSEmail]     = useState('');
+  const [sOtp, setSOtp]         = useState('');
+  const [sOtpWait, setSOtpWait] = useState(0);
+  const [sBvn, setSBvn]         = useState('');
+  const [sNin, setSNin]         = useState('');
+  const [sIdType, setSIdType]   = useState<'bvn'|'nin'>('bvn');
+  const [sFaceDone, setSFaceDone]   = useState(false);
   const [sFaceStage, setSFaceStage] = useState(0);
-  const [sFaceHint, setSFaceHint] = useState('Preparing camera…');
-  const [sCamReady, setSCamReady] = useState(false);
-  const [sCamErr, setSCamErr]     = useState('');
-  const [sSelfie, setSSelfie]     = useState<string | null>(null);
-  const [sFullName, setSFullName] = useState('');
-  const [sEmail, setSEmail]       = useState('');
-  const [sDob, setSdob]           = useState('');
-  const [sPassword, setSPassword] = useState('');
-  const [sPin, setSPin]           = useState('');
-  const [sPin2, setSPin2]         = useState('');
-  const [sPinStep, setSPinStep]   = useState<'create'|'confirm'>('create');
+  const [sFaceHint, setSFaceHint]   = useState('Preparing camera…');
+  const [sCamReady, setSCamReady]   = useState(false);
+  const [sCamErr, setSCamErr]       = useState('');
+  const [sSelfie, setSSelfie]       = useState<string | null>(null);
+  const [sFullName, setSFullName]   = useState('');
+  const [sDob, setSdob]             = useState('');
+  const [sPassword, setSPassword]   = useState('');
+  const [sPin, setSPin]             = useState('');
+  const [sPin2, setSPin2]           = useState('');
+  const [sPinStep, setSPinStep]     = useState<'create'|'confirm'>('create');
 
   /* ── login state ── */
-  const [lStep, setLStep]         = useState<LoginStep>('phone');
-  const [lPhone, setLPhone]       = useState('');
+  const [lStep, setLStep]       = useState<LoginStep>('phone');
+  const [lPhone, setLPhone]     = useState('');
   const [lPassword, setLPassword] = useState('');
-  const [lPin, setLPin]           = useState('');
-  const [lUsePin, setLUsePin]     = useState(false);
+  const [lPin, setLPin]         = useState('');
+  const [lUsePin, setLUsePin]   = useState(false);
 
-  const [loading, setLoading]   = useState(false);
-  const faceRan = useRef(false);
+  /* ── forgot password state ── */
+  const [showForgot, setShowForgot]   = useState(false);
+  const [fStep, setFStep]             = useState<ForgotStep>('email');
+  const [fEmail, setFEmail]           = useState('');
+  const [fOtp, setFOtp]               = useState('');
+  const [fOtpWait, setFOtpWait]       = useState(0);
+  const [fPassword, setFPassword]     = useState('');
+  const [fPassword2, setFPassword2]   = useState('');
+
+  /* ── webcam refs ── */
+  const faceRan  = useRef(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  /* ── helpers ── */
-  const err = (msg: string) => onToast(msg);
-  const load = async (fn: () => Promise<void>) => {
-    setLoading(true);
-    try { await fn(); }
-    catch (e: unknown) { err(e instanceof Error ? e.message : 'Something went wrong'); }
-    finally { setLoading(false); }
-  };
+  /* ── countdown timers ── */
+  useEffect(() => {
+    if (sOtpWait <= 0) return;
+    const t = setTimeout(() => setSOtpWait(w => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [sOtpWait]);
 
-  const stopCam = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-  };
-
-  const resetSignup = () => {
-    setSStep('phone'); setSPhone(''); setSOtp(''); setSOtpCode('');
-    setSBvn(''); setSNin(''); setSFaceDone(false); setSFaceStage(0);
-    setSFaceHint('Preparing camera…'); setSCamReady(false); setSCamErr('');
-    setSSelfie(null); setSFullName(''); setSEmail(''); setSdob('');
-    setSPassword(''); setSPin(''); setSPin2(''); setSPinStep('create');
-    faceRan.current = false; stopCam();
-  };
+  useEffect(() => {
+    if (fOtpWait <= 0) return;
+    const t = setTimeout(() => setFOtpWait(w => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [fOtpWait]);
 
   /* ── face verification ── */
+  const stopCam = () => { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null; };
+
   useEffect(() => {
     if (sStep !== 'face' || sFaceDone || faceRan.current) return;
     faceRan.current = true;
@@ -227,29 +190,22 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
       setSFaceHint('Opening camera…'); setSCamErr(''); setSCamReady(false);
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
-          audio: false,
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }, audio: false,
         });
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
-        }
+        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play().catch(() => {}); }
         setSCamReady(true);
       } catch {
         setSCamErr('Camera access is required. Please allow camera permission and try again.');
         setSFaceHint('Camera permission required');
         return;
       }
-
       await new Promise(r => setTimeout(r, 600));
       if (cancelled) return;
-
       for (let i = 0; i < FACE_STAGES.length; i++) {
         if (cancelled) return;
-        setSFaceStage(i);
-        setSFaceHint(FACE_STAGES[i].prompt);
+        setSFaceStage(i); setSFaceHint(FACE_STAGES[i].prompt);
         try {
           if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
@@ -257,121 +213,76 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
             u.lang = 'en-NG'; u.rate = 0.92;
             window.speechSynthesis.speak(u);
           }
-        } catch { /* ignore speech errors */ }
+        } catch { /**/ }
         await new Promise(r => setTimeout(r, FACE_STAGES[i].hold));
       }
       if (cancelled) return;
-
-      // Capture selfie
       if (videoRef.current && canvasRef.current) {
-        const v = videoRef.current;
-        const c = canvasRef.current;
-        c.width = v.videoWidth || 320;
-        c.height = v.videoHeight || 320;
+        const v = videoRef.current; const c = canvasRef.current;
+        c.width = v.videoWidth || 320; c.height = v.videoHeight || 320;
         c.getContext('2d')!.drawImage(v, 0, 0);
-        setSSelfie(c.toDataURL('image/jpeg', 0.82));
-        localStorage.setItem('nkc_selfie', c.toDataURL('image/jpeg', 0.82));
+        const dataUrl = c.toDataURL('image/jpeg', 0.82);
+        setSSelfie(dataUrl);
+        try { localStorage.setItem('nkc_selfie', dataUrl); } catch { /**/ }
       }
-
-      stopCam();
-      setSFaceDone(true);
-      setSFaceHint('Face verified — you can continue');
+      stopCam(); setSFaceDone(true); setSFaceHint('Face verified — you can continue');
     };
 
     run();
     return () => { cancelled = true; stopCam(); try { window.speechSynthesis?.cancel(); } catch { /**/ } };
   }, [sStep, sFaceDone]);
 
-  /* ════════════════════════════
-     SIGNUP handlers
-  ════════════════════════════ */
-  const handleSendOtp = () => load(async () => {
-    if (!isValidNgPhone(sPhone)) {
-      err('Enter a valid Nigerian mobile number (e.g. 08012345678)'); return;
-    }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setSOtpCode(code); setSOtp('');
-    setSStep('otp');
-    onToast(`Demo code sent to ${normalizePhone(sPhone)}: ${code}`);
+  /* ── helpers ── */
+  const err  = (msg: string) => onToast(msg);
+  const load = async (fn: () => Promise<void>) => {
+    setLoading(true);
+    try { await fn(); } catch (e: unknown) { err(e instanceof Error ? e.message : 'Something went wrong'); }
+    finally { setLoading(false); }
+  };
+
+  const resetSignup = () => {
+    setSStep('phone-email'); setSPhone(''); setSEmail(''); setSOtp(''); setSOtpWait(0);
+    setSBvn(''); setSNin(''); setSFaceDone(false); setSFaceStage(0);
+    setSFaceHint('Preparing camera…'); setSCamReady(false); setSCamErr('');
+    setSSelfie(null); setSFullName(''); setSdob(''); setSPassword('');
+    setSPin(''); setSPin2(''); setSPinStep('create'); faceRan.current = false; stopCam();
+  };
+
+  /* ── API calls ── */
+  const sendSignupOtp = () => load(async () => {
+    if (!isValidEmail(sEmail)) { err('Enter a valid email address'); return; }
+    if (!isValidNgPhone(sPhone)) { err('Enter a valid Nigerian mobile number'); return; }
+    const res = await fetch('/api/v1/auth/otp', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: sEmail.trim(), purpose: 'signup', name: sEmail.split('@')[0] }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error ?? 'Could not send verification email');
+    setSOtp(''); setSOtpWait(60); setSStep('otp');
+    onToast(`Verification code sent to ${sEmail.trim()}`);
   });
 
-  const handleVerifyOtp = () => {
-    if (sOtp.replace(/\s/g, '').length < 6) { err('Enter the 6-digit code'); return; }
-    if (sOtp !== sOtpCode) { err('Invalid code. Check the demo toast and try again.'); return; }
+  const verifySignupOtp = () => load(async () => {
+    if (sOtp.replace(/\s/g,'').length < 6) { err('Enter the 6-digit code from your email'); return; }
+    const res = await fetch('/api/v1/auth/otp/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: sEmail.trim(), code: sOtp.trim(), purpose: 'signup' }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error ?? 'Invalid or expired code');
     setSStep('identity');
-  };
-
-  const handleIdentity = () => {
-    if (sIdType === 'bvn' && !/^\d{11}$/.test(sBvn)) {
-      err('BVN must be exactly 11 digits'); return;
-    }
-    if (sIdType === 'nin' && !/^\d{11}$/.test(sNin)) {
-      err('NIN must be exactly 11 digits'); return;
-    }
-    faceRan.current = false; setSFaceDone(false); setSFaceStage(0);
-    setSStep('face');
-  };
-
-  const handleFaceContinue = () => {
-    if (!sFaceDone) { err('Please wait for face verification to complete'); return; }
-    setSStep('profile');
-  };
-
-  const handleProfile = () => {
-    if (sFullName.trim().length < 2) { err('Enter your full legal name'); return; }
-    if (sEmail && (!sEmail.includes('@') || !sEmail.includes('.'))) {
-      err('Enter a valid email address'); return;
-    }
-    setSStep('password');
-  };
-
-  const handlePinInput = (v: string) => {
-    setSPin(v);
-    if (v.length === 4) {
-      if (sPinStep === 'create') { setSPin2(''); setSPinStep('confirm'); setSPin(''); }
-      else {
-        if (v !== sPin2 && sPinStep === 'confirm') {
-          // v is the re-entry, sPin2 holds nothing yet — swap logic
-        }
-        // v is the confirmation
-        if (v !== sPin) {
-          err('PINs do not match. Please try again.'); setSPin(''); setSPin2(''); setSPinStep('create');
-        } else {
-          handleRegister(v);
-        }
-      }
-    }
-  };
-
-  // Simplified: create sets sPin2, confirm checks against sPin2
-  const handlePinCreate = (v: string) => {
-    setSPin(v);
-    if (v.length === 4) { setSPin2(v); setSPinStep('confirm'); setSPin(''); }
-  };
-  const handlePinConfirm = (v: string) => {
-    setSPin(v);
-    if (v.length === 4) {
-      if (v !== sPin2) {
-        err('PINs do not match. Try again.');
-        setSPin(''); setSPin2(''); setSPinStep('create');
-      } else {
-        handleRegister(v);
-      }
-    }
-  };
+  });
 
   const handleRegister = (confirmedPin: string) => load(async () => {
     if (sPassword.length < 6) { err('Password must be at least 6 characters'); return; }
     const res = await fetch('/api/v1/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        phone: normalizePhone(sPhone),
+        phone:    normalizePhone(sPhone),
         fullName: sFullName.trim(),
-        email: sEmail.trim() || undefined,
+        email:    sEmail.trim(),
         password: sPassword,
-        pin: confirmedPin,
-        bvn: sIdType === 'bvn' ? sBvn : undefined,
+        pin:      confirmedPin,
         dateOfBirth: sDob || undefined,
       }),
     });
@@ -379,455 +290,423 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     if (!res.ok || !json.success) throw new Error(json.error ?? 'Registration failed');
     setSStep('success');
     onToast(`Welcome to Nakconel Bank, ${sFullName.split(' ')[0]}!`);
-    setTimeout(() => {
-      onSuccess(json.data as Session);
-    }, 1600);
+    setTimeout(() => onSuccess(json.data as Session), 1600);
   });
 
-  /* ════════════════════════════
-     LOGIN handlers
-  ════════════════════════════ */
+  const handlePinCreate  = (v: string) => { setSPin(v); if (v.length === 4) { setSPin2(v); setSPinStep('confirm'); setSPin(''); } };
+  const handlePinConfirm = (v: string) => {
+    setSPin(v);
+    if (v.length === 4) {
+      if (v !== sPin2) { err('PINs do not match. Try again.'); setSPin(''); setSPin2(''); setSPinStep('create'); }
+      else handleRegister(v);
+    }
+  };
+
+  /* ── login ── */
   const handleLoginNext = () => {
-    if (!isValidNgPhone(lPhone)) { err('Enter a valid Nigerian mobile number'); return; }
+    if (!isValidNgPhone(lPhone) && !isValidEmail(lPhone)) { err('Enter a valid phone number or email'); return; }
     setLPassword(''); setLPin(''); setLStep('password');
   };
-
-  const handleLoginPin = (v: string) => {
-    setLPin(v);
-    if (v.length === 4) handleLogin(undefined, v);
-  };
-
-  const handleLogin = (e?: React.FormEvent, pinOverride?: string) => {
-    e?.preventDefault();
-    const pw = lUsePin ? (pinOverride ?? lPin) : lPassword;
-    if (!pw) { err('Enter your password or PIN'); return; }
-    load(async () => {
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizePhone(lPhone), password: pw }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error ?? 'Login failed');
-      onSuccess(json.data as Session);
-      onToast(`Welcome back, ${(json.data as Session).fullName.split(' ')[0]}!`);
+  const handleLoginPin = (v: string) => { setLPin(v); if (v.length === 4) doLogin(v); };
+  const doLogin = (pw: string) => load(async () => {
+    const identifier = isValidEmail(lPhone) ? lPhone.trim() : normalizePhone(lPhone);
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: identifier, password: pw }),
     });
-  };
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error ?? 'Login failed');
+    onSuccess(json.data as Session);
+    onToast(`Welcome back, ${(json.data as Session).fullName.split(' ')[0]}!`);
+  });
 
-  /* ════════════════════════════
-     Shared shell
-  ════════════════════════════ */
-  const card = (children: React.ReactNode) => (
+  /* ── forgot password ── */
+  const sendForgotOtp = () => load(async () => {
+    if (!isValidEmail(fEmail)) { err('Enter a valid email address'); return; }
+    const res = await fetch('/api/v1/auth/otp', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: fEmail.trim(), purpose: 'password-reset' }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error ?? 'Could not send reset email');
+    setFOtp(''); setFOtpWait(60); setFStep('otp');
+    onToast(`Password reset code sent to ${fEmail.trim()}`);
+  });
+
+  const verifyForgotOtp = () => load(async () => {
+    if (fOtp.replace(/\s/g,'').length < 6) { err('Enter the 6-digit code from your email'); return; }
+    const res = await fetch('/api/v1/auth/otp/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: fEmail.trim(), code: fOtp.trim(), purpose: 'password-reset' }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error ?? 'Invalid or expired code');
+    setFStep('new-password');
+  });
+
+  const doResetPassword = () => load(async () => {
+    if (fPassword.length < 6) { err('Password must be at least 6 characters'); return; }
+    if (fPassword !== fPassword2) { err('Passwords do not match'); return; }
+    const res = await fetch('/api/v1/auth/reset-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: fEmail.trim(), code: fOtp.trim(), newPassword: fPassword }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error ?? 'Password reset failed');
+    if (json.data?.id) {
+      onSuccess(json.data as Session);
+      onToast('Password reset successfully. You are now logged in.');
+    } else {
+      setFStep('done');
+    }
+  });
+
+  /* ── shared card wrapper ── */
+  const card = (title: string, children: React.ReactNode, showBack = true) => (
     <div style={{ paddingTop: 8, paddingBottom: 32 }}>
-      <button
-        type="button"
-        className="btn-ghost"
-        style={{ marginBottom: 14 }}
-        onClick={() => {
-          if (tab === 'signup' && sStep !== 'phone') {
-            const steps = SIGNUP_STEPS;
-            const idx = steps.indexOf(sStep);
-            if (idx > 0) {
-              const prev = steps[idx - 1];
-              if (prev === 'face') faceRan.current = false;
-              setSStep(prev); setSPin(''); setSPin2(''); setSPinStep('create');
+      {showBack && (
+        <button type="button" className="btn-ghost" style={{ marginBottom: 14 }}
+          onClick={() => {
+            if (showForgot) {
+              if (fStep === 'email') { setShowForgot(false); setFEmail(''); setFOtp(''); setFPassword(''); setFPassword2(''); }
+              else if (fStep === 'otp') setFStep('email');
+              else if (fStep === 'new-password') setFStep('otp');
+              return;
             }
-            return;
-          }
-          if (tab === 'login' && lStep === 'password') { setLStep('phone'); return; }
-          onBack(); if (tab === 'signup') resetSignup();
-        }}
-      >← Back</button>
+            if (tab === 'signup' && sStep !== 'phone-email') {
+              const idx = SIGNUP_STEPS.indexOf(sStep);
+              if (idx > 0) {
+                const prev = SIGNUP_STEPS[idx - 1];
+                if (prev === 'face') faceRan.current = false;
+                setSStep(prev); setSPin(''); setSPin2(''); setSPinStep('create');
+              }
+              return;
+            }
+            if (tab === 'login' && lStep === 'password') { setLStep('phone'); return; }
+            onBack(); if (tab === 'signup') resetSignup();
+          }}>← Back</button>
+      )}
 
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <Logo size={52} />
         <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Secure banking, built for Africa</p>
       </div>
 
-      {/* Tab switcher */}
-      <div className="glass" style={{ padding: 5, display: 'flex', gap: 4, marginBottom: 20 }}>
-        <button
-          type="button"
-          className={`tab${tab === 'login' ? ' on' : ''}`}
-          onClick={() => { setTab('login'); setLStep('phone'); }}
-        >Sign in</button>
-        <button
-          type="button"
-          className={`tab${tab === 'signup' ? ' on' : ''}`}
-          onClick={() => { setTab('signup'); resetSignup(); }}
-        >Create account</button>
-      </div>
+      {!showForgot && (
+        <div className="glass" style={{ padding: 5, display: 'flex', gap: 4, marginBottom: 20 }}>
+          <button type="button" className={`tab${tab === 'login' ? ' on' : ''}`}
+            onClick={() => { setTab('login'); setLStep('phone'); setShowForgot(false); }}>Sign in</button>
+          <button type="button" className={`tab${tab === 'signup' ? ' on' : ''}`}
+            onClick={() => { setTab('signup'); resetSignup(); setShowForgot(false); }}>Create account</button>
+        </div>
+      )}
 
-      {children}
+      {showForgot && (
+        <p style={{ textAlign: 'center', fontWeight: 700, fontSize: 17, color: 'var(--maroon)', marginBottom: 18 }}>
+          Reset your password
+        </p>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {children}
+      </div>
     </div>
   );
 
-  /* ════════════════════════════
-     SIGNUP screens
-  ════════════════════════════ */
-  if (tab === 'signup') {
-    /* — Step: phone — */
-    if (sStep === 'phone') return card(
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Enter your phone number</p>
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
-          Your phone number becomes your Nakconel account number
-        </p>
-        <label className="field-label">Phone number</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 8 }}>
-          <input className="input" value="+234" readOnly style={{ textAlign: 'center', color: 'var(--muted)' }} />
-          <input
-            className="input"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="080 1234 5678"
-            value={sPhone}
-            onChange={e => setSPhone(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
-          />
+  /* ════════ FORGOT PASSWORD ════════ */
+  if (showForgot) {
+    if (fStep === 'email') return card('Reset password', <>
+      <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+        Enter your registered email address. We'll send you a 6-digit reset code.
+      </p>
+      <label className="field-label">Email address</label>
+      <input className="input" type="email" placeholder="you@email.com"
+        value={fEmail} onChange={e => setFEmail(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && sendForgotOtp()} />
+      <button type="button" className="btn-gold" disabled={loading || !isValidEmail(fEmail)} onClick={sendForgotOtp}>
+        {loading ? 'Sending…' : 'Send reset code'}
+      </button>
+    </>);
+
+    if (fStep === 'otp') return card('Reset password', <>
+      <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+        Enter the 6-digit code sent to <strong>{fEmail}</strong>
+      </p>
+      <OtpBoxes value={fOtp} onChange={setFOtp} />
+      <button type="button" className="btn-gold"
+        disabled={loading || fOtp.replace(/\s/g,'').length < 6} onClick={verifyForgotOtp}>
+        {loading ? 'Verifying…' : 'Verify code'}
+      </button>
+      <button type="button" className="btn-ghost" disabled={fOtpWait > 0 || loading} onClick={sendForgotOtp}>
+        {fOtpWait > 0 ? `Resend in ${fOtpWait}s` : 'Resend code'}
+      </button>
+    </>);
+
+    if (fStep === 'new-password') return card('Reset password', <>
+      <p style={{ fontSize: 13, color: 'var(--muted)' }}>Choose a new password for your account.</p>
+      <label className="field-label">New password</label>
+      <input className="input" type="password" placeholder="Min. 6 characters"
+        value={fPassword} onChange={e => setFPassword(e.target.value)} />
+      <label className="field-label">Confirm new password</label>
+      <input className="input" type="password" placeholder="Repeat password"
+        value={fPassword2} onChange={e => setFPassword2(e.target.value)} />
+      <button type="button" className="btn-gold"
+        disabled={loading || fPassword.length < 6 || fPassword !== fPassword2} onClick={doResetPassword}>
+        {loading ? 'Resetting…' : 'Set new password'}
+      </button>
+    </>);
+
+    if (fStep === 'done') return card('Reset password', <>
+      <div style={{ textAlign: 'center', paddingTop: 16 }}>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(40,119,78,.12)', border: '2px solid var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <IconCheck size={40} color="var(--ok)" />
         </div>
-        {isValidNgPhone(sPhone) && (
-          <p style={{ fontSize: 12, color: 'var(--ok)' }}>
-            Account number: <strong>{normalizePhone(sPhone)}</strong>
-          </p>
-        )}
-        <button
-          type="button"
-          className="btn-gold"
-          style={{ marginTop: 8 }}
-          disabled={loading || !isValidNgPhone(sPhone)}
-          onClick={handleSendOtp}
-        >{loading ? 'Sending…' : 'Send verification code'}</button>
+        <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Password reset!</p>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6 }}>You can now sign in with your new password.</p>
+        <button type="button" className="btn-gold" style={{ marginTop: 20 }}
+          onClick={() => { setShowForgot(false); setTab('login'); setLStep('phone'); }}>
+          Sign in
+        </button>
       </div>
-    );
+    </>, false);
 
-    /* — Step: OTP — */
-    if (sStep === 'otp') return card(
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <StepDots current="otp" />
-        <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>OTP Verification</p>
-        <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-          Enter the 6-digit code sent to <strong>{normalizePhone(sPhone)}</strong>
-        </p>
-        <OtpBoxes value={sOtp} onChange={setSOtp} />
-        <button
-          type="button"
-          className="btn-gold"
-          disabled={loading || sOtp.replace(/\s/g,'').length < 6}
-          onClick={handleVerifyOtp}
-        >Verify</button>
-        <button
-          type="button"
-          className="btn-ghost"
-          style={{ marginTop: 4 }}
-          onClick={handleSendOtp}
-        >Resend code</button>
-      </div>
-    );
-
-    /* — Step: identity — */
-    if (sStep === 'identity') return card(
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <StepDots current="identity" />
-        <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Identity Verification</p>
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
-          Provide your BVN or NIN — required by the CBN
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-          {(['bvn','nin'] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              className={`tab${sIdType === t ? ' on' : ''}`}
-              style={{ flex: 1 }}
-              onClick={() => setSIdType(t)}
-            >{t.toUpperCase()}</button>
-          ))}
-        </div>
-        {sIdType === 'bvn' ? (
-          <>
-            <label className="field-label">Bank Verification Number (BVN)</label>
-            <input
-              className="input"
-              placeholder="11-digit BVN"
-              inputMode="numeric"
-              maxLength={11}
-              value={sBvn}
-              onChange={e => setSBvn(e.target.value.replace(/\D/g,'').slice(0,11))}
-            />
-            <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-              BVN is encrypted and used only for identity checks. Dial *565*0# to get yours.
-            </p>
-          </>
-        ) : (
-          <>
-            <label className="field-label">National Identification Number (NIN)</label>
-            <input
-              className="input"
-              placeholder="11-digit NIN"
-              inputMode="numeric"
-              maxLength={11}
-              value={sNin}
-              onChange={e => setSNin(e.target.value.replace(/\D/g,'').slice(0,11))}
-            />
-            <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-              Dial *346# to get your NIN.
-            </p>
-          </>
-        )}
-        <button
-          type="button"
-          className="btn-gold"
-          style={{ marginTop: 6 }}
-          disabled={loading || (sIdType === 'bvn' ? sBvn.length < 11 : sNin.length < 11)}
-          onClick={handleIdentity}
-        >Continue</button>
-      </div>
-    );
-
-    /* — Step: face — */
-    if (sStep === 'face') return card(
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <StepDots current="face" />
-        <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>
-          Facial Verification
-        </p>
-        <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 6 }}>
-          Follow the on-screen instructions to verify your face
-        </p>
-        <div style={{
-          width: 200, height: 240, borderRadius: '50% / 46%', margin: '0 auto 12px',
-          border: sFaceDone ? '3px solid var(--ok)' : sFaceStage >= 1 ? '3px solid var(--gold)' : '3px dashed rgba(101,23,25,.4)',
-          background: '#0a0606', position: 'relative', overflow: 'hidden',
-          boxShadow: sFaceDone ? '0 0 32px rgba(95,212,146,.3)' : '0 0 20px rgba(197,155,68,.15)',
-          transition: 'border-color .3s',
-        }}>
-          <video
-            ref={videoRef}
-            playsInline muted autoPlay
-            style={{
-              position: 'absolute', inset: 0, width: '100%', height: '100%',
-              objectFit: 'cover', transform: 'scaleX(-1)',
-              opacity: sFaceDone ? 0.2 : sCamReady ? 1 : 0.3, transition: 'opacity .4s',
-            }}
-          />
-          <canvas ref={canvasRef} style={{ display: 'none' }} />
-          {!sCamReady && !sFaceDone && !sCamErr && (
-            <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'rgba(247,236,212,.6)', fontSize: 13, zIndex: 2 }}>
-              Starting camera…
-            </span>
-          )}
-          {sFaceDone && (
-            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', zIndex: 2 }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: '50%',
-                background: 'rgba(95,212,146,.2)', border: '2px solid #5fd492',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <IconCheck size={40} color="#5fd492" />
-              </div>
-            </div>
-          )}
-        </div>
-        {sSelfie && sFaceDone && (
-          <div style={{ textAlign: 'center' }}>
-            <img src={sSelfie} alt="Captured selfie" style={{ width: 60, height: 60, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', margin: '0 auto' }} />
-          </div>
-        )}
-        <p style={{ fontSize: 13, color: sFaceDone ? 'var(--ok)' : 'var(--maroon)', fontWeight: 600, textAlign: 'center', lineHeight: 1.4 }}>
-          {sFaceHint}
-        </p>
-        {sCamErr && (
-          <p style={{ fontSize: 12, color: 'var(--danger)', lineHeight: 1.5, textAlign: 'center' }}>{sCamErr}</p>
-        )}
-        {!sFaceDone && (
-          <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
-            {FACE_STAGES.slice(0, 4).map((_, i) => (
-              <div key={i} style={{ width: 8, height: 8, borderRadius: 999, background: i <= sFaceStage ? 'var(--gold)' : 'rgba(101,23,25,.15)' }} />
-            ))}
-          </div>
-        )}
-        {sCamErr && (
-          <button
-            type="button"
-            className="btn-outline"
-            onClick={() => { faceRan.current = false; setSCamErr(''); setSFaceDone(false); setSFaceStage(0); setTimeout(() => { faceRan.current = false; setSStep('identity'); setTimeout(() => setSStep('face'), 60); }, 0); }}
-          >Retry camera</button>
-        )}
-        <button
-          type="button"
-          className="btn-gold"
-          disabled={!sFaceDone}
-          onClick={handleFaceContinue}
-        >{sFaceDone ? 'Continue' : 'Verifying…'}</button>
-      </div>
-    );
-
-    /* — Step: profile — */
-    if (sStep === 'profile') return card(
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <StepDots current="profile" />
-        <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Profile Information</p>
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Name must match your ID</p>
-        <label className="field-label">Full Name (as on ID)</label>
-        <input className="input" placeholder="e.g. Adewale Olusegun" value={sFullName} onChange={e => setSFullName(e.target.value)} />
-        <label className="field-label">Email address (optional)</label>
-        <input className="input" type="email" placeholder="you@email.com" value={sEmail} onChange={e => setSEmail(e.target.value)} />
-        <label className="field-label">Date of Birth (optional)</label>
-        <input className="input" type="date" value={sDob} onChange={e => setSdob(e.target.value)} />
-        <button
-          type="button"
-          className="btn-gold"
-          style={{ marginTop: 6 }}
-          disabled={loading || sFullName.trim().length < 2}
-          onClick={handleProfile}
-        >Continue</button>
-      </div>
-    );
-
-    /* — Step: password + PIN — */
-    if (sStep === 'password') return card(
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <StepDots current="password" />
-        <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>
-          {sPinStep === 'create' ? 'Set Password & PIN' : 'Confirm your PIN'}
-        </p>
-        {sPinStep === 'create' ? (
-          <>
-            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 4 }}>
-              Choose a password and a 4-digit transaction PIN
-            </p>
-            <label className="field-label">Password (min. 6 characters)</label>
-            <input
-              className="input"
-              type="password"
-              placeholder="Create a strong password"
-              value={sPassword}
-              onChange={e => setSPassword(e.target.value)}
-            />
-            <p style={{ fontWeight: 600, fontSize: 13, color: 'var(--maroon)', textAlign: 'center', marginTop: 12 }}>
-              Create 4-digit PIN
-            </p>
-            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
-              Used to approve transfers and payments
-            </p>
-            <PinDots value={sPin} />
-            <PinKeypad value={sPin} onChange={handlePinCreate} />
-          </>
-        ) : (
-          <>
-            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 4 }}>
-              Enter the same PIN again to confirm
-            </p>
-            <PinDots value={sPin} />
-            <PinKeypad value={sPin} onChange={handlePinConfirm} />
-            {loading && <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>Creating your account…</p>}
-          </>
-        )}
-      </div>
-    );
-
-    /* — Step: success — */
-    if (sStep === 'success') return card(
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, paddingTop: 20 }}>
-        <div style={{
-          width: 80, height: 80, borderRadius: '50%',
-          background: 'rgba(40,119,78,.12)', border: '2px solid var(--ok)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <IconCheck size={44} color="var(--ok)" />
-        </div>
-        <p style={{ fontWeight: 800, fontSize: 20, color: 'var(--maroon)' }}>Account Created!</p>
-        <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6 }}>
-          Welcome to Nakconel Bank.<br />
-          Your account number is <strong style={{ color: 'var(--maroon)' }}>{normalizePhone(sPhone)}</strong>.
-        </p>
-        {sSelfie && (
-          <img src={sSelfie} alt="Profile photo" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--gold)' }} />
-        )}
-        <p style={{ fontSize: 12, color: 'var(--muted)' }}>Taking you to your dashboard…</p>
-      </div>
-    );
+    return null;
   }
 
-  /* ════════════════════════════
-     LOGIN screens
-  ════════════════════════════ */
-  /* — Login Step 1: phone — */
-  if (tab === 'login' && lStep === 'phone') return card(
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Enter your phone number</p>
-      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
-        We'll verify it's you before you log in
-      </p>
+  /* ════════ SIGNUP ════════ */
+  if (tab === 'signup') {
+
+    /* Step: phone + email */
+    if (sStep === 'phone-email') return card('Create account', <>
+      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Get started</p>
+      <p style={{ fontSize: 12, color: 'var(--muted)' }}>Your phone number becomes your Nakconel account number</p>
       <label className="field-label">Phone number</label>
       <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 8 }}>
         <input className="input" value="+234" readOnly style={{ textAlign: 'center', color: 'var(--muted)' }} />
-        <input
-          className="input"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder="080 1234 5678"
-          value={lPhone}
-          onChange={e => setLPhone(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleLoginNext()}
-        />
+        <input className="input" type="tel" inputMode="tel" autoComplete="tel"
+          placeholder="080 1234 5678" value={sPhone} onChange={e => setSPhone(e.target.value)} />
       </div>
-      <button
-        type="button"
-        className="btn-gold"
-        style={{ marginTop: 8 }}
-        disabled={loading || !isValidNgPhone(lPhone)}
-        onClick={handleLoginNext}
-      >Continue</button>
-    </div>
-  );
-
-  /* — Login Step 2: password/PIN — */
-  if (tab === 'login' && lStep === 'password') return card(
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>
-        {lUsePin ? 'Enter your PIN' : 'Enter your password'}
+      {isValidNgPhone(sPhone) && (
+        <p style={{ fontSize: 12, color: 'var(--ok)' }}>Account number: <strong>{normalizePhone(sPhone)}</strong></p>
+      )}
+      <label className="field-label">Email address</label>
+      <input className="input" type="email" placeholder="you@email.com"
+        value={sEmail} onChange={e => setSEmail(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && sendSignupOtp()} />
+      <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+        We'll send a 6-digit verification code to your email.
       </p>
-      <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-        Signing in as <strong>{normalizePhone(lPhone)}</strong>
-      </p>
+      <button type="button" className="btn-gold" style={{ marginTop: 6 }}
+        disabled={loading || !isValidNgPhone(sPhone) || !isValidEmail(sEmail)} onClick={sendSignupOtp}>
+        {loading ? 'Sending code…' : 'Continue'}
+      </button>
+    </>);
 
-      {lUsePin ? (
+    /* Step: email OTP */
+    if (sStep === 'otp') return card('Create account', <>
+      <StepDots current="otp" />
+      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>Verify your email</p>
+      <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>
+        Enter the 6-digit code sent to <strong>{sEmail}</strong>
+      </p>
+      <OtpBoxes value={sOtp} onChange={setSOtp} />
+      <button type="button" className="btn-gold"
+        disabled={loading || sOtp.replace(/\s/g,'').length < 6} onClick={verifySignupOtp}>
+        {loading ? 'Verifying…' : 'Verify'}
+      </button>
+      <button type="button" className="btn-ghost" disabled={sOtpWait > 0 || loading} onClick={sendSignupOtp}>
+        {sOtpWait > 0 ? `Resend in ${sOtpWait}s` : 'Resend code'}
+      </button>
+    </>);
+
+    /* Step: identity (BVN / NIN) */
+    if (sStep === 'identity') return card('Create account', <>
+      <StepDots current="identity" />
+      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Identity Verification</p>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Required by the CBN for account activation</p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+        {(['bvn','nin'] as const).map(t => (
+          <button key={t} type="button" className={`tab${sIdType === t ? ' on' : ''}`}
+            style={{ flex: 1 }} onClick={() => setSIdType(t)}>{t.toUpperCase()}</button>
+        ))}
+      </div>
+      {sIdType === 'bvn' ? (
         <>
-          <PinDots value={lPin} />
-          <PinKeypad value={lPin} onChange={handleLoginPin} />
+          <label className="field-label">Bank Verification Number (BVN)</label>
+          <input className="input" placeholder="11-digit BVN" inputMode="numeric" maxLength={11}
+            value={sBvn} onChange={e => setSBvn(e.target.value.replace(/\D/g,'').slice(0,11))} />
+          <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>Dial *565*0# to retrieve your BVN</p>
         </>
       ) : (
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label className="field-label">Password</label>
-          <input
-            className="input"
-            type="password"
-            placeholder="Your password"
-            value={lPassword}
-            onChange={e => setLPassword(e.target.value)}
-            autoFocus
-          />
-          <button
-            type="submit"
-            className="btn-gold"
-            style={{ marginTop: 6 }}
-            disabled={loading || !lPassword}
-          >{loading ? 'Signing in…' : 'Login'}</button>
-        </form>
+        <>
+          <label className="field-label">National Identification Number (NIN)</label>
+          <input className="input" placeholder="11-digit NIN" inputMode="numeric" maxLength={11}
+            value={sNin} onChange={e => setSNin(e.target.value.replace(/\D/g,'').slice(0,11))} />
+          <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>Dial *346# to retrieve your NIN</p>
+        </>
       )}
+      <button type="button" className="btn-gold" style={{ marginTop: 6 }}
+        disabled={loading || (sIdType === 'bvn' ? sBvn.length < 11 : sNin.length < 11)}
+        onClick={() => { faceRan.current = false; setSFaceDone(false); setSFaceStage(0); setSStep('face'); }}>
+        Continue
+      </button>
+    </>);
 
-      <button
-        type="button"
-        className="btn-ghost"
-        style={{ marginTop: 4 }}
-        onClick={() => { setLUsePin(u => !u); setLPassword(''); setLPin(''); }}
-      >{lUsePin ? 'Use password instead' : 'Use PIN instead'}</button>
-    </div>
-  );
+    /* Step: face verification */
+    if (sStep === 'face') return card('Create account', <>
+      <StepDots current="face" />
+      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>Facial Verification</p>
+      <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 6 }}>
+        Follow the on-screen instructions. Your selfie becomes your profile photo.
+      </p>
+      <div style={{ width: 200, height: 240, borderRadius: '50% / 46%', margin: '0 auto 12px',
+        border: sFaceDone ? '3px solid var(--ok)' : sFaceStage >= 1 ? '3px solid var(--gold)' : '3px dashed rgba(101,23,25,.4)',
+        background: '#0a0606', position: 'relative', overflow: 'hidden',
+        boxShadow: sFaceDone ? '0 0 32px rgba(95,212,146,.3)' : '0 0 20px rgba(197,155,68,.15)',
+        transition: 'border-color .3s' }}>
+        <video ref={videoRef} playsInline muted autoPlay style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
+          objectFit: 'cover', transform: 'scaleX(-1)', opacity: sFaceDone ? 0.2 : sCamReady ? 1 : 0.3, transition: 'opacity .4s' }} />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        {!sCamReady && !sFaceDone && !sCamErr && (
+          <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'rgba(247,236,212,.6)', fontSize: 13, zIndex: 2 }}>Starting camera…</span>
+        )}
+        {sFaceDone && (
+          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', zIndex: 2 }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(95,212,146,.2)', border: '2px solid #5fd492', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconCheck size={40} color="#5fd492" />
+            </div>
+          </div>
+        )}
+      </div>
+      {sSelfie && sFaceDone && (
+        <div style={{ textAlign: 'center' }}>
+          <img src={sSelfie} alt="Your selfie" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', margin: '0 auto' }} />
+        </div>
+      )}
+      <p style={{ fontSize: 13, color: sFaceDone ? 'var(--ok)' : 'var(--maroon)', fontWeight: 600, textAlign: 'center', lineHeight: 1.4 }}>{sFaceHint}</p>
+      {sCamErr && <p style={{ fontSize: 12, color: 'var(--danger)', lineHeight: 1.5, textAlign: 'center' }}>{sCamErr}</p>}
+      {!sFaceDone && (
+        <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
+          {FACE_STAGES.slice(0,4).map((_, i) => (
+            <div key={i} style={{ width: 8, height: 8, borderRadius: 999, background: i <= sFaceStage ? 'var(--gold)' : 'rgba(101,23,25,.15)' }} />
+          ))}
+        </div>
+      )}
+      {sCamErr && (
+        <button type="button" className="btn-outline" onClick={() => {
+          faceRan.current = false; setSCamErr(''); setSFaceDone(false); setSFaceStage(0);
+          setTimeout(() => { faceRan.current = false; setSStep('identity'); setTimeout(() => setSStep('face'), 60); }, 0);
+        }}>Retry camera</button>
+      )}
+      <button type="button" className="btn-gold" disabled={!sFaceDone} onClick={() => setSStep('profile')}>
+        {sFaceDone ? 'Continue' : 'Verifying…'}
+      </button>
+    </>);
+
+    /* Step: profile */
+    if (sStep === 'profile') return card('Create account', <>
+      <StepDots current="profile" />
+      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Profile Information</p>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Name must match your ID</p>
+      <label className="field-label">Full name (as on ID)</label>
+      <input className="input" placeholder="e.g. Adewale Olusegun" value={sFullName} onChange={e => setSFullName(e.target.value)} />
+      <label className="field-label">Date of birth (optional)</label>
+      <input className="input" type="date" value={sDob} onChange={e => setSdob(e.target.value)} />
+      <button type="button" className="btn-gold" style={{ marginTop: 6 }}
+        disabled={loading || sFullName.trim().length < 2}
+        onClick={() => setSStep('password')}>Continue</button>
+    </>);
+
+    /* Step: password + PIN */
+    if (sStep === 'password') return card('Create account', <>
+      <StepDots current="password" />
+      <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>
+        {sPinStep === 'create' ? 'Set Password & PIN' : 'Confirm your PIN'}
+      </p>
+      {sPinStep === 'create' ? (
+        <>
+          <label className="field-label">Password (min. 6 characters)</label>
+          <input className="input" type="password" placeholder="Create a strong password"
+            value={sPassword} onChange={e => setSPassword(e.target.value)} />
+          <p style={{ fontWeight: 600, fontSize: 13, color: 'var(--maroon)', textAlign: 'center', marginTop: 12 }}>Create 4-digit PIN</p>
+          <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>Used to approve transfers and payments</p>
+          <PinDots value={sPin} />
+          <PinKeypad value={sPin} onChange={handlePinCreate} />
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', marginBottom: 4 }}>Enter the same PIN again to confirm</p>
+          <PinDots value={sPin} />
+          <PinKeypad value={sPin} onChange={handlePinConfirm} />
+          {loading && <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>Creating your account…</p>}
+        </>
+      )}
+    </>);
+
+    /* Step: success */
+    if (sStep === 'success') return card('', <>
+      <div style={{ textAlign: 'center', paddingTop: 16 }}>
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(40,119,78,.12)', border: '2px solid var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <IconCheck size={44} color="var(--ok)" />
+        </div>
+        <p style={{ fontWeight: 800, fontSize: 20, color: 'var(--maroon)' }}>Account Created!</p>
+        <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6, marginTop: 6 }}>
+          Welcome to Nakconel Bank.<br/>Your account number is <strong style={{ color: 'var(--maroon)' }}>{normalizePhone(sPhone)}</strong>.
+        </p>
+        {sSelfie && <img src={sSelfie} alt="Profile" style={{ width: 68, height: 68, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--gold)', margin: '14px auto 0', display: 'block' }} />}
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>Taking you to your dashboard…</p>
+      </div>
+    </>, false);
+  }
+
+  /* ════════ LOGIN ════════ */
+  /* Step: phone/email */
+  if (tab === 'login' && lStep === 'phone') return card('Sign in', <>
+    <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Welcome back</p>
+    <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Enter your phone number or email</p>
+    <label className="field-label">Phone number or email</label>
+    <input className="input" type="text" placeholder="080 1234 5678 or you@email.com"
+      value={lPhone} onChange={e => setLPhone(e.target.value)}
+      onKeyDown={e => e.key === 'Enter' && handleLoginNext()} />
+    <button type="button" className="btn-gold" style={{ marginTop: 6 }}
+      disabled={loading || (!isValidNgPhone(lPhone) && !isValidEmail(lPhone))} onClick={handleLoginNext}>
+      Continue
+    </button>
+    <button type="button" style={{ background: 'none', border: 'none', color: 'var(--maroon)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', textAlign: 'center', padding: '8px 0' }}
+      onClick={() => { setShowForgot(true); setFStep('email'); setFEmail(''); }}>
+      Forgot password?
+    </button>
+  </>);
+
+  /* Step: password/PIN */
+  if (tab === 'login' && lStep === 'password') return card('Sign in', <>
+    <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)', textAlign: 'center' }}>
+      {lUsePin ? 'Enter your PIN' : 'Enter your password'}
+    </p>
+    <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
+      Signing in as <strong>{isValidEmail(lPhone) ? lPhone : normalizePhone(lPhone)}</strong>
+    </p>
+    {lUsePin ? (
+      <><PinDots value={lPin} /><PinKeypad value={lPin} onChange={handleLoginPin} /></>
+    ) : (
+      <form onSubmit={e => { e.preventDefault(); doLogin(lPassword); }} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <label className="field-label">Password</label>
+        <input className="input" type="password" placeholder="Your password"
+          value={lPassword} onChange={e => setLPassword(e.target.value)} autoFocus />
+        <button type="submit" className="btn-gold" disabled={loading || !lPassword}>
+          {loading ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    )}
+    <button type="button" className="btn-ghost" style={{ marginTop: 4 }}
+      onClick={() => { setLUsePin(u => !u); setLPassword(''); setLPin(''); }}>
+      {lUsePin ? 'Use password instead' : 'Use PIN instead'}
+    </button>
+    <button type="button" style={{ background: 'none', border: 'none', color: 'var(--maroon)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', textAlign: 'center', padding: '8px 0' }}
+      onClick={() => { setShowForgot(true); setFStep('email'); setFEmail(''); }}>
+      Forgot password?
+    </button>
+  </>);
 
   return null;
 }

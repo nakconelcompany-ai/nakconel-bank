@@ -385,3 +385,31 @@ export async function apiListIntlTransfers() {
     createdAt: string;
   }>>(res);
 }
+
+/* ── Email OTP ── */
+export async function apiSendEmailOtp(email: string, purpose: 'signup' | 'password-reset', name?: string) {
+  const res = await fetch('/api/v1/auth/otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, purpose, name }),
+  });
+  return call<{ sent: boolean }>(res);
+}
+
+export async function apiVerifyEmailOtp(email: string, code: string, purpose: 'signup' | 'password-reset') {
+  const res = await fetch('/api/v1/auth/otp/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, purpose }),
+  });
+  return call<{ valid: boolean }>(res);
+}
+
+export async function apiResetPassword(email: string, code: string, newPassword: string) {
+  const res = await fetch('/api/v1/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+  return call<Session & { passwordReset?: boolean }>(res);
+}

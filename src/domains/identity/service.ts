@@ -2,6 +2,9 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword, hashPin, verifyPassword, verifyPin } from '@/lib/crypto';
 import { writeAudit } from '@/lib/audit';
 import { postJournal } from '@/domains/ledger/service';
+import { createHash } from 'crypto';
+
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function normalizePhone(raw: string): string {
   let d = raw.replace(/\D/g, '');
@@ -10,13 +13,40 @@ function normalizePhone(raw: string): string {
   return d.slice(0, 11);
 }
 
+/** Hash a plain OTP code so we never store it in plaintext */
+function hashCode(code: string): string {
+  return createHash('sha256').update(`otp:${code}`).digest('hex');
+}
+
+/** Store an email OTP in the IdempotencyRecord table (reuses existing infra) */
+export async function saveEmailOtp(email: string, code: string, purpose: 'signup' | 'password-reset') {
+  const key = `email-otp:${purpose}:${email.toLowerCase()}`;
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+  await prisma.idempotencyRecord.upsert({
+    where:  { key },
+    create: { key, response: { codeHash: hashCode(code), purpose }, expiresAt },
+    update: { response: { codeHash: hashCode(code), purpose }, expiresAt },
+  });
+}
+
+/** Verify and consume an email OTP — returns true once, then it's gone */
+export async function verifyEmailOtp(email: string, code: string, purpose: 'signup' | 'password-reset'): Promise<boolean> {
+  const key = `email-otp:${purpose}:${email.toLowerCase()}`;
+  const record = await prisma.idempotencyRecord.findUnique({ where: { key } });
+  if (!record || record.expiresAt < new Date()) return false;
+  const stored = record.response as { codeHash: string; purpose: string };
+  if (stored.codeHash !== hashCode(code)) return false;
+  // consume — delete so it can't be reused
+  await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
+  return true;
+}
+
 export async function registerUser(input: {
   phone: string;
   fullName: string;
-  email?: string;
+  email: string;
   password: string;
   pin: string;
-  bvn?: string;
   dateOfBirth?: string;
   address?: string;
 }) {
@@ -28,58 +58,50 @@ export async function registerUser(input: {
     throw new Error('Enter a valid Nigerian mobile number (e.g. 08012345678)');
   }
 
-  // Check phone uniqueness
-  const existingPhone = await prisma.user.findFirst({ where: { phone } });
+  const email = input.email.toLowerCase().trim();
+  if (!email.includes('@') || !email.includes('.')) throw new Error('Enter a valid email address');
+
+  const [existingPhone, existingEmail] = await Promise.all([
+    prisma.user.findFirst({ where: { phone } }),
+    prisma.user.findUnique({ where: { email } }),
+  ]);
   if (existingPhone) throw new Error('This phone number is already registered');
+  if (existingEmail) throw new Error('This email address is already registered');
 
-  // Check email uniqueness if provided
-  if (input.email) {
-    const existingEmail = await prisma.user.findUnique({
-      where: { email: input.email.toLowerCase().trim() },
-    });
-    if (existingEmail) throw new Error('This email is already registered');
-  }
-
-  const passwordHash = await hashPassword(input.password);
-  const pinHash = await hashPin(input.pin);
+  const [passwordHash, pinHash] = await Promise.all([
+    hashPassword(input.password),
+    hashPin(input.pin),
+  ]);
 
   const user = await prisma.user.create({
     data: {
-      email: input.email?.toLowerCase().trim() ?? `${phone}@nakconel.app`,
+      email,
       fullName: input.fullName.trim(),
       phone,
       address: input.address ?? null,
       passwordHash,
       pinHash,
       kycStatus: 'NONE',
-      accounts: {
-        create: { currency: 'NGN', status: 'ACTIVE' },
-      },
+      accounts: { create: { currency: 'NGN', status: 'ACTIVE' } },
     },
     include: { accounts: true },
   });
 
-  await writeAudit({
-    userId: user.id,
-    action: 'USER_REGISTERED',
-    resource: 'user',
-    resourceId: user.id,
-  });
+  await writeAudit({ userId: user.id, action: 'USER_REGISTERED', resource: 'user', resourceId: user.id });
 
   return {
-    id: user.id,
-    email: user.email,
-    fullName: user.fullName,
-    phone: user.phone ?? undefined,
+    id:        user.id,
+    email:     user.email,
+    fullName:  user.fullName,
+    phone:     user.phone ?? undefined,
     accountId: user.accounts[0]?.id,
     kycStatus: user.kycStatus,
   };
 }
 
 export async function loginUser(emailOrPhone: string, password: string) {
-  // Accept either email or phone number
   const isPhone = !emailOrPhone.includes('@');
-  const phone = isPhone ? normalizePhone(emailOrPhone) : null;
+  const phone   = isPhone ? normalizePhone(emailOrPhone) : null;
 
   const user = await prisma.user.findFirst({
     where: isPhone
@@ -92,21 +114,26 @@ export async function loginUser(emailOrPhone: string, password: string) {
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) throw new Error('Invalid credentials');
 
-  await writeAudit({
-    userId: user.id,
-    action: 'USER_LOGIN',
-    resource: 'user',
-    resourceId: user.id,
-  });
+  await writeAudit({ userId: user.id, action: 'USER_LOGIN', resource: 'user', resourceId: user.id });
 
   return {
-    id: user.id,
-    email: user.email,
-    fullName: user.fullName,
-    phone: user.phone ?? undefined,
+    id:        user.id,
+    email:     user.email,
+    fullName:  user.fullName,
+    phone:     user.phone ?? undefined,
     kycStatus: user.kycStatus,
     accountId: user.accounts[0]?.id,
   };
+}
+
+export async function resetPassword(email: string, newPassword: string) {
+  if (newPassword.length < 6) throw new Error('Password must be at least 6 characters');
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+  if (!user) throw new Error('No account found with that email address');
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  await writeAudit({ userId: user.id, action: 'PASSWORD_RESET', resource: 'user', resourceId: user.id });
+  return { id: user.id, email: user.email, fullName: user.fullName };
 }
 
 export async function verifyUserPin(userId: string, pin: string): Promise<boolean> {
@@ -124,7 +151,6 @@ export async function changePin(userId: string, oldPin: string, newPin: string) 
   await writeAudit({ userId, action: 'PIN_CHANGED', resource: 'user', resourceId: userId });
 }
 
-/** Credit wallet after a confirmed top-up payment */
 export async function topUpAccount(input: {
   userId: string;
   accountId: string;
@@ -132,29 +158,22 @@ export async function topUpAccount(input: {
   reference: string;
 }) {
   if (input.amountKobo < 10000) throw new Error('Minimum top-up is ₦100');
-
-  const account = await prisma.account.findFirst({
-    where: { id: input.accountId, userId: input.userId },
-  });
+  const account = await prisma.account.findFirst({ where: { id: input.accountId, userId: input.userId } });
   if (!account) throw new Error('Account not found');
 
   const journal = await postJournal({
     description: 'Wallet top-up',
-    entries: [
-      {
-        debitAccountId: 'funding:nakconel',
-        creditAccountId: input.accountId,
-        amount: input.amountKobo,
-        reference: input.reference,
-      },
-    ],
+    entries: [{
+      debitAccountId:  'funding:nakconel',
+      creditAccountId: input.accountId,
+      amount:          input.amountKobo,
+      reference:       input.reference,
+    }],
   });
 
   await writeAudit({
-    userId: input.userId,
-    action: 'TOPUP_COMPLETED',
-    resource: 'account',
-    resourceId: input.accountId,
+    userId: input.userId, action: 'TOPUP_COMPLETED',
+    resource: 'account', resourceId: input.accountId,
     meta: { amount: input.amountKobo, journalId: journal.id },
   });
 
