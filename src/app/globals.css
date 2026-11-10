@@ -30,11 +30,12 @@ button, input, select { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
   max-width: 500px;
   margin: 0 auto;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
   background:
     radial-gradient(ellipse 90% 30% at 50% 0%, rgba(197, 155, 68, 0.08), transparent 70%),
     var(--bg);
@@ -43,7 +44,7 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 
 .brand-header {
-  min-height: 76px;
+  min-height: 64px;
   padding: 10px 18px;
   display: flex;
   align-items: center;
@@ -53,6 +54,9 @@ button { -webkit-tap-highlight-color: transparent; }
     radial-gradient(ellipse at 92% 120%, rgba(197, 155, 68, 0.24), transparent 42%),
     linear-gradient(110deg, var(--maroon-deep), var(--maroon) 66%, #4a1015);
   border-bottom: 2px solid var(--gold);
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 .brand-logo { flex: 0 0 auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.24)); }
 .brand-copy { min-width: 0; }
@@ -68,8 +72,14 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .brand-tagline span { color: var(--gold-bright); padding: 0 4px; }
 
-.app-content { padding: 20px 17px 112px; }
-.app-content.no-nav { min-height: calc(100vh - 76px); }
+.app-content {
+  padding: 16px 16px calc(80px + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+}
+.app-content.no-nav {
+  min-height: calc(100dvh - 64px);
+  padding-bottom: 24px;
+}
 .app-layout { min-width: 0; }
 .desktop-sidebar { display: none; }
 
@@ -82,21 +92,26 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .btn-gold {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; padding: 14px 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+  width: 100%; padding: 16px 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 14px;
   background: linear-gradient(135deg, #792124, var(--maroon) 72%, #521216);
-  color: #fff9eb; font-weight: 700; font-size: 14px; cursor: pointer;
+  color: #fff9eb; font-weight: 700; font-size: 15px; cursor: pointer;
+  min-height: 52px;
   box-shadow: 0 5px 13px rgba(101, 23, 25, .17), inset 0 1px 0 rgba(255,255,255,.12);
   transition: transform .16s ease, box-shadow .16s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .btn-gold:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(101,23,25,.22); }
+.btn-gold:active:not(:disabled) { transform: scale(.98); }
 .btn-gold:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
 
 .btn-outline {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; padding: 13px 18px; border-radius: 12px;
-  border: 1px solid rgba(101, 23, 25, .32);
+  width: 100%; padding: 15px 18px; border-radius: 14px;
+  border: 1.5px solid rgba(101, 23, 25, .32);
   background: var(--surface);
-  color: var(--maroon); font-weight: 700; font-size: 14px; cursor: pointer;
+  color: var(--maroon); font-weight: 700; font-size: 15px; cursor: pointer;
+  min-height: 52px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-ghost {
@@ -109,12 +124,14 @@ button { -webkit-tap-highlight-color: transparent; }
 .btn-ghost:hover { border-color: rgba(101,23,25,.38); background: #fffaf1; }
 
 input.input, .input, select.input {
-  display: block; width: 100%; padding: 13px 14px; border-radius: 11px;
+  display: block; width: 100%; padding: 14px 14px; border-radius: 11px;
   border: 1px solid #ded2c1 !important;
   background: #fffefa !important;
   color: var(--ink) !important;
-  font-size: 14px; font-family: inherit; font-weight: 500; outline: none;
+  font-size: 16px; /* 16px prevents iOS auto-zoom on focus */
+  font-family: inherit; font-weight: 500; outline: none;
   -webkit-appearance: none; appearance: none;
+  min-height: 50px; /* comfortable touch target */
 }
 input.input:focus, .input:focus, select.input:focus {
   border-color: var(--maroon) !important;
@@ -154,17 +171,21 @@ select.input option { background: #fffefa; color: var(--ink); }
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 500px;
   display: flex; justify-content: space-around; align-items: center;
-  padding: 9px 5px max(14px, env(safe-area-inset-bottom));
+  padding: 8px 4px max(env(safe-area-inset-bottom), 10px);
   background: rgba(255,253,248,.97);
   border-top: 1px solid var(--border);
-  backdrop-filter: blur(16px); z-index: 50;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  z-index: 50;
   box-shadow: 0 -5px 18px rgba(62,12,17,.05);
 }
 .nav-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   background: none; border: none; color: #978a80;
-  font-size: 10px; font-weight: 600; cursor: pointer; padding: 5px 8px;
-  min-width: 54px; font-family: inherit;
+  font-size: 10px; font-weight: 600; cursor: pointer;
+  padding: 6px 10px;
+  min-width: 56px; min-height: 44px; /* touch target */
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 .nav-btn.active { color: var(--maroon); }
 .nav-icon-wrap {
@@ -231,21 +252,50 @@ select.input option { background: #fffefa; color: var(--ink); }
 
 .welcome-hero {
   text-align: center;
-  padding: 40px 18px 30px;
-  margin: 2px 0 22px;
+  padding: 36px 24px 32px;
+  margin: 0 0 20px;
   border-radius: 20px;
   background: linear-gradient(155deg, #fffdf8, #f8f0e5);
   border: 1px solid #eee2d0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
-.welcome-hero h1 { color: var(--maroon); font: 700 28px/1.15 Georgia, serif; margin: 17px 0 8px; text-align: center; }
-.welcome-hero p { color: var(--muted); font-size: 13px; line-height: 1.65; text-align: center; max-width: 300px; }
-.welcome-kicker { color: #a38348 !important; font-size: 10px !important; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
-.welcome-screen { display: flex; flex-direction: column; align-items: center; }
+.welcome-hero h1 {
+  color: var(--maroon);
+  font: 700 clamp(24px, 7vw, 32px)/1.18 Georgia, serif;
+  margin: 16px 0 10px;
+  text-align: center;
+  width: 100%;
+}
+.welcome-hero p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+  text-align: center;
+  max-width: 280px;
+  margin: 0 auto;
+}
+.welcome-kicker {
+  color: #a38348 !important;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.welcome-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 2px;
+}
 .welcome-screen .btn-gold,
-.welcome-screen .btn-outline { max-width: 400px; width: 100%; }
+.welcome-screen .btn-outline {
+  width: 100%;
+}
 .home-greeting { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
 .home-greeting .eyebrow { color:var(--muted); font-size:12px; }
 .home-greeting .name { color:var(--ink); font-size:19px; font-weight:700; margin-top:2px; }
@@ -395,10 +445,11 @@ select.input option { background: #fffefa; color: var(--ink); }
 }
 
 @media (max-width: 360px) {
-  .brand-header { gap:8px; padding-inline:12px; }
-  .brand-tagline { font-size:10px; padding-left:8px; }
-  .app-content { padding-inline:13px; }
-  .quick-actions { gap:5px; }
+  .brand-header { gap: 8px; padding-inline: 12px; }
+  .app-content { padding-inline: 12px; }
+  .quick-actions { gap: 5px; }
+  .welcome-hero h1 { font-size: 22px; }
+  .btn-gold, .btn-outline { font-size: 14px; padding: 14px 14px; }
 }
 
 .corridor-title { display:flex; align-items:center; gap:10px; }
@@ -416,7 +467,13 @@ select.input option { background: #fffefa; color: var(--ink); }
 .corridor-card > svg { color:var(--maroon); }
 
 @media (max-width: 699px) {
-  .brand-tagline { display:none; }
-  .brand-header { min-height:64px; }
-  .app-content { padding-top:16px; }
+  .brand-tagline { display: none; }
+  .brand-header { min-height: 60px; }
+  .app-content { padding-top: 14px; }
+  .page-title { font-size: 20px; }
+  .balance-amount { font-size: 26px; }
+  .quick-action { padding: 11px 4px; font-size: 10px; }
+  .quick-action-icon { width: 34px; height: 34px; border-radius: 10px; }
+  .home-shortcut { padding: 13px; font-size: 13px; }
+  .glass { border-radius: 14px; }
 }
