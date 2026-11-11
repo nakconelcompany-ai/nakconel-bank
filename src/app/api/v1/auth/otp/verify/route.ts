@@ -1,13 +1,6 @@
-/**
- * POST /api/v1/auth/otp/verify
- * Verify an email OTP code.
- *
- * Body: { email: string; code: string; purpose: 'signup' | 'password-reset' }
- * Returns: { valid: true } or 400 error
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { verifyEmailOtp } from '@/domains/identity/service';
+import { verifyEmailOtp, issuePasswordResetToken } from '@/domains/identity/service';
 
 const schema = z.object({
   email:   z.string().email(),
@@ -31,6 +24,13 @@ export async function POST(req: NextRequest) {
       { success: false, error: 'Invalid or expired code. Please request a new one.' },
       { status: 400 }
     );
+  }
+
+  // For password-reset: issue a short-lived token so the client can call
+  // /api/v1/auth/reset-password without re-verifying the OTP (it's consumed)
+  if (parsed.data.purpose === 'password-reset') {
+    const resetToken = await issuePasswordResetToken(parsed.data.email);
+    return NextResponse.json({ success: true, data: { valid: true, resetToken } });
   }
 
   return NextResponse.json({ success: true, data: { valid: true } });

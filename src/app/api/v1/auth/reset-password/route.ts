@@ -1,19 +1,11 @@
-/**
- * POST /api/v1/auth/reset-password
- * Reset password after OTP verification.
- *
- * Body: { email: string; code: string; newPassword: string }
- * The code is verified and consumed here (single-step).
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { verifyEmailOtp, resetPassword } from '@/domains/identity/service';
+import { verifyPasswordResetToken, resetPassword, loginUser } from '@/domains/identity/service';
 import { setSessionCookie } from '@/lib/session';
-import { loginUser } from '@/domains/identity/service';
 
 const schema = z.object({
   email:       z.string().email(),
-  code:        z.string().length(6),
+  resetToken:  z.string().min(10),
   newPassword: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -24,26 +16,30 @@ export async function POST(req: NextRequest) {
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ success: false, error: parsed.error.errors[0]?.message ?? 'Invalid request.' }, { status: 400 });
-  }
-
-  const { email, code, newPassword } = parsed.data;
-
-  // Verify OTP (this also consumes it)
-  const valid = await verifyEmailOtp(email, code, 'password-reset');
-  if (!valid) {
     return NextResponse.json(
-      { success: false, error: 'Invalid or expired code. Please request a new one.' },
+      { success: false, error: parsed.error.errors[0]?.message ?? 'Invalid request.' },
       { status: 400 }
     );
   }
 
-  // Reset the password
+  const { email, resetToken, newPassword } = parsed.data;
+
+  // Verify the reset token (issued after OTP verification)
+  const valid = await verifyPasswordResetToken(email, resetToken);
+  if (!valid) {
+    return NextResponse.json(
+      { success: false, error: 'Reset session expired. Please request a new code.' },
+      { status: 400 }
+    );
+  }
+
   try {
     await resetPassword(email, newPassword);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Password reset failed.';
-    return NextResponse.json({ success: false, error: msg }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : 'Password reset failed.' },
+      { status: 400 }
+    );
   }
 
   // Auto-login after reset
@@ -53,7 +49,6 @@ export async function POST(req: NextRequest) {
     setSessionCookie(response, user.id);
     return response;
   } catch {
-    // Reset worked but auto-login failed — user can log in manually
     return NextResponse.json({ success: true, data: { passwordReset: true } });
   }
 }

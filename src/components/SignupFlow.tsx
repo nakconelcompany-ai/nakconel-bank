@@ -158,6 +158,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
   const [fEmail, setFEmail]           = useState('');
   const [fOtp, setFOtp]               = useState('');
   const [fOtpWait, setFOtpWait]       = useState(0);
+  const [fResetToken, setFResetToken] = useState('');
   const [fPassword, setFPassword]     = useState('');
   const [fPassword2, setFPassword2]   = useState('');
 
@@ -345,6 +346,8 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     });
     const json = await res.json();
     if (!res.ok || !json.success) throw new Error(json.error ?? 'Invalid or expired code');
+    // Store the reset token returned by the server
+    setFResetToken(json.data?.resetToken ?? '');
     setFStep('new-password');
   });
 
@@ -353,7 +356,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     if (fPassword !== fPassword2) { err('Passwords do not match'); return; }
     const res = await fetch('/api/v1/auth/reset-password', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: fEmail.trim(), code: fOtp.trim(), newPassword: fPassword }),
+      body: JSON.stringify({ email: fEmail.trim(), resetToken: fResetToken, newPassword: fPassword }),
     });
     const json = await res.json();
     if (!res.ok || !json.success) throw new Error(json.error ?? 'Password reset failed');

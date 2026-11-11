@@ -52,6 +52,30 @@ export async function verifyEmailOtp(email: string, code: string, purpose: 'sign
   return true;
 }
 
+/** After OTP is verified for password-reset, issue a short-lived reset token */
+export async function issuePasswordResetToken(email: string): Promise<string> {
+  const token = createHash('sha256').update(`reset:${email}:${Date.now()}:${Math.random()}`).digest('hex');
+  const key = `reset-token:${email.toLowerCase()}`;
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+  await prisma.idempotencyRecord.upsert({
+    where:  { key },
+    create: { key, response: { token, email: email.toLowerCase() }, expiresAt },
+    update: { response: { token, email: email.toLowerCase() }, expiresAt },
+  });
+  return token;
+}
+
+/** Verify and consume a password reset token */
+export async function verifyPasswordResetToken(email: string, token: string): Promise<boolean> {
+  const key = `reset-token:${email.toLowerCase()}`;
+  const record = await prisma.idempotencyRecord.findUnique({ where: { key } });
+  if (!record || record.expiresAt < new Date()) return false;
+  const stored = record.response as { token: string; email: string };
+  if (stored.token !== token) return false;
+  await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
+  return true;
+}
+
 export async function registerUser(input: {
   phone: string;
   fullName: string;
