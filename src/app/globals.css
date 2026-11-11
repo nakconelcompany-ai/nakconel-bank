@@ -25,7 +25,7 @@ html, body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
-  font-size: 16px;
+  font-size: 17px;
 }
 
 button, input, select { font: inherit; }
@@ -227,10 +227,10 @@ select.input option { background: #fffefa; color: var(--ink); }
 }
 .tx-row:last-child { border-bottom: none; }
 
-.page-title { color: var(--maroon); font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -.025em; }
-.page-sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; font-weight: 500; }
+.page-title { color: var(--maroon); font-size: 24px; font-weight: 800; margin-bottom: 6px; letter-spacing: -.025em; }
+.page-sub { color: var(--muted); font-size: 15px; margin-bottom: 20px; font-weight: 500; }
 .field-label {
-  display: block; font-size: 12px; font-weight: 700;
+  display: block; font-size: 13px; font-weight: 700;
   color: #73655c; margin-bottom: 7px;
   letter-spacing: .045em; text-transform: uppercase;
 }
@@ -370,12 +370,12 @@ select.input option { background: #fffefa; color: var(--ink); }
 .home-shortcut span:last-child { color:var(--maroon); font-size:19px; }
 .home-shortcut small { display:inline-block; margin-top:4px; color:var(--muted); font-size:11px; font-weight:500; }
 .home-avatar {
-  display:grid; place-items:center; width:42px; height:42px; border-radius:50%;
-  background:#f3e5d5; border:1px solid #e6d3bc; color:var(--maroon); font-weight:800;
+  display:grid; place-items:center; width:52px; height:52px; border-radius:50%;
+  background:#f3e5d5; border:2px solid #e6d3bc; color:var(--maroon); font-weight:800; font-size:20px;
 }
 .balance-label { position:relative; z-index:1; display:flex; align-items:center; gap:8px; color:rgba(255,248,233,.82); font-size:12px; }
 .balance-label button { display:grid; place-items:center; background:none; border:0; color:#fff8e9; cursor:pointer; padding:2px; }
-.balance-amount { position:relative; z-index:1; color:#fff8e9; font-size:29px; font-weight:800; letter-spacing:-.03em; margin-top:7px; }
+.balance-amount { position:relative; z-index:1; color:#fff8e9; font-size:32px; font-weight:800; letter-spacing:-.03em; margin-top:7px; }
 .balance-caption { position:relative; z-index:1; color:rgba(255,248,233,.72); font-size:10px; margin-top:11px; }
 .balance-caption span { color:var(--gold-bright); padding:0 4px; }
 .activity-card { padding:0 15px; }
@@ -467,8 +467,8 @@ select.input option { background: #fffefa; color: var(--ink); }
     display: flex; align-items: center; gap: 9px;
   }
   .sidebar-account-avatar {
-    display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto;
-    border-radius: 50%; background: #f3e5d5; color: var(--maroon); font-size: 13px; font-weight: 800;
+    display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 auto;
+    border-radius: 50%; background: #f3e5d5; color: var(--maroon); font-size: 18px; font-weight: 800;
   }
   .sidebar-account-copy { display: grid; min-width: 0; gap: 3px; }
   .sidebar-account-copy strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -479,7 +479,7 @@ select.input option { background: #fffefa; color: var(--ink); }
   .bottom-nav { display: none; }
   .home-screen { max-width: 960px; margin: 0 auto; }
   .home-screen > .balance-card { padding: 29px 30px; border-radius: 22px; }
-  .home-screen > .balance-card .balance-amount { font-size: 36px; }
+  .home-screen > .balance-card .balance-amount { font-size: 42px; }
   .home-screen > .quick-actions { max-width: 520px; gap: 12px; }
   .home-screen > .quick-actions .quick-action { flex-direction: row; justify-content: flex-start; padding: 12px; gap: 11px; font-size: 12px; }
   .home-screen > .quick-actions .quick-action-icon { width: 40px; height: 40px; }

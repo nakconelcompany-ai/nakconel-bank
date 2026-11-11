@@ -249,7 +249,7 @@ export default function BankApp() {
               </nav>
               <div className="sidebar-account">
                 {selfie
-                  ? <img src={selfie} alt="Profile" style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  ? <img src={selfie} alt="Profile" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid rgba(197,155,68,.4)' }} />
                   : <span className="sidebar-account-avatar">{session?.fullName.trim()[0]?.toUpperCase()}</span>
                 }
                 <span className="sidebar-account-copy">
@@ -384,7 +384,7 @@ export default function BankApp() {
         {(() => {
           const selfie = typeof localStorage !== 'undefined' ? (() => { try { return localStorage.getItem('nkc_selfie'); } catch { return null; } })() : null;
           return selfie
-            ? <img src={selfie} alt="Profile" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
+            ? <img src={selfie} alt="Profile" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} />
             : <span className="home-avatar">{session.fullName.trim()[0]?.toUpperCase()}</span>;
         })()}
       </div>
