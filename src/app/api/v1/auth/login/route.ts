@@ -48,9 +48,9 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-    console.error('Login error:', e);
+    console.error('Login error:', String(e));
     return NextResponse.json(
-      { success: false, error: 'Login is temporarily unavailable. Please try again.' },
+      { success: false, error: `Login failed: ${e instanceof Error ? e.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
