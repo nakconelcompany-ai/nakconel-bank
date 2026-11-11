@@ -131,6 +131,12 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     { code: 'alipay',  name: 'Alipay',                short: 'Ali',  color: '#1677FF', flag: '📱', country: 'CN' },
     { code: 'wechat',  name: 'WeChat Pay',            short: 'WCP',  color: '#07C160', flag: '📱', country: 'CN' },
   ],
+  /* Qatar */
+  QA: [
+    { code: 'qnb',      name: 'Qatar National Bank',   short: 'QNB',  color: '#8B0000', flag: '🏦', country: 'QA' },
+    { code: 'cbq',      name: 'Commercial Bank Qatar', short: 'CBQ',  color: '#004B87', flag: '🏦', country: 'QA' },
+    { code: 'dohabank', name: 'Doha Bank',             short: 'DOH',  color: '#005CA9', flag: '🏦', country: 'QA' },
+  ],
   /* Australia */
   AU: [
     { code: 'anz',     name: 'ANZ Bank',              short: 'ANZ',  color: '#007DC6', flag: '🏦', country: 'AU' },
@@ -138,7 +144,16 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     { code: 'nab',     name: 'NAB',                   short: 'NAB',  color: '#E31837', flag: '🏦', country: 'AU' },
     { code: 'westpac', name: 'Westpac',               short: 'WBC',  color: '#DA1710', flag: '🏦', country: 'AU' },
   ],
-  /* Singapore */
+  /* Japan */
+  JP: [
+    { code: 'mufg',    name: 'MUFG Bank',             short: 'MUFG', color: '#C8102E', flag: '🏦', country: 'JP' },
+    { code: 'smbc',    name: 'Sumitomo Mitsui (SMBC)', short: 'SMBC', color: '#005BAC', flag: '🏦', country: 'JP' },
+    { code: 'mizuho',  name: 'Mizuho Bank',           short: 'MIZ',  color: '#004EA2', flag: '🏦', country: 'JP' },
+    { code: 'jppost',  name: 'Japan Post Bank',       short: 'JPB',  color: '#CC0000', flag: '🏦', country: 'JP' },
+    { code: 'paypay',  name: 'PayPay',                short: 'Pay',  color: '#E63F21', flag: '📱', country: 'JP' },
+    { code: 'linepay', name: 'LINE Pay',              short: 'LINE', color: '#00C300', flag: '📱', country: 'JP' },
+  ],
+
   SG: [
     { code: 'dbs',     name: 'DBS Bank',              short: 'DBS',  color: '#E5202E', flag: '🏦', country: 'SG' },
     { code: 'ocbc',    name: 'OCBC Bank',             short: 'OCBC', color: '#C41E3A', flag: '🏦', country: 'SG' },
@@ -147,7 +162,7 @@ export const INTL_BANKS: Record<string, Bank[]> = {
   ],
 };
 
-/* Map currency code → country codes that use it (for bank lookup) */
+/* Map currency code → country codes that use it */
 export const CURRENCY_COUNTRIES: Record<string, string[]> = {
   NGN: ['NG'],
   USD: ['US'],
@@ -155,14 +170,37 @@ export const CURRENCY_COUNTRIES: Record<string, string[]> = {
   EUR: ['DE', 'FR'],
   AED: ['AE'],
   SAR: ['SA'],
+  QAR: ['QA'],    // Qatar Riyal
   GHS: ['GH'],
   KES: ['KE'],
   ZAR: ['ZA'],
   CAD: ['CA'],
   INR: ['IN'],
   CNY: ['CN'],
+  JPY: ['JP'],    // Japanese Yen
   AUD: ['AU'],
+  NZD: ['AU'],    // NZD — use Australian banks as closest available
   SGD: ['SG'],
+  HKD: ['SG'],    // HKD — use Singapore banks as closest available
+  KRW: ['SG'],    // KRW — use Singapore banks as closest available
+  MYR: ['SG'],    // MYR — use Singapore banks
+  IDR: ['SG'],
+  PHP: ['SG'],
+  THB: ['SG'],
+  BRL: ['US'],    // BRL — use US banks (international remittance)
+  MXN: ['US'],
+  CHF: ['DE'],    // CHF — use European banks
+  SEK: ['DE'],
+  NOK: ['DE'],
+  PLN: ['DE'],
+  EGP: ['AE'],    // EGP — use UAE banks (common corridor)
+  ETB: ['KE'],    // ETB — use Kenya banks (East Africa corridor)
+  UGX: ['KE'],
+  TZS: ['KE'],
+  RWF: ['KE'],
+  XOF: ['GH'],    // West African CFA — use Ghana banks
+  BHD: ['AE'],
+  KWD: ['AE'],
 };
 
 /** Get banks for a currency. Falls back to NG_BANKS for NGN. */

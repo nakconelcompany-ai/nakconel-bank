@@ -18,7 +18,7 @@ import {
 
 type View =
   | 'landing' | 'auth' | 'home'
-  | 'send' | 'receive' | 'topup' | 'history'
+  | 'send' | 'bank-picker' | 'receive' | 'topup' | 'history'
   | 'card' | 'kyc' | 'account'
   | 'pin' | 'success'
   | 'business' | 'business-demo' | 'international';
@@ -76,10 +76,12 @@ export default function BankApp() {
   // send form
   const [sendAmount, setSendAmount] = useState('');
   const [sendBank, setSendBank]     = useState('');
+  const [sendBankName, setSendBankName] = useState('');
   const [sendAcct, setSendAcct]     = useState('');
   const [sendName, setSendName]     = useState('');
   const [sendNote, setSendNote]     = useState('');
   const [nameLoading, setNameLoading] = useState(false);
+  const [bankSearch, setBankSearch] = useState('');
 
   // topup
   const [topupAmt, setTopupAmt]     = useState('');
@@ -483,120 +485,180 @@ export default function BankApp() {
     { nav: true }
   );
 
+  /* ════════ BANK PICKER ════════ */
+  if (view === 'bank-picker' && session) {
+    const banks = getBanksForCurrency(viewCurrency.code);
+    const filtered = banks.filter(b =>
+      b.name.toLowerCase().includes(bankSearch.toLowerCase()) ||
+      b.short.toLowerCase().includes(bankSearch.toLowerCase())
+    );
+    return shell(
+      <div>
+        <button type="button" className="btn-ghost" style={{ marginBottom: 16 }}
+          onClick={() => setView('send')}>← Back to Send</button>
+        <h2 style={{ marginBottom: 4 }}>Select bank</h2>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
+          {viewCurrency.flag} {viewCurrency.code} banks and wallets
+        </p>
+        {/* Search */}
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 14 }}>🔍</span>
+          <input className="input" placeholder="Search bank or wallet…"
+            value={bankSearch} onChange={e => setBankSearch(e.target.value)}
+            autoFocus style={{ paddingLeft: 36 }} />
+        </div>
+        {/* Bank list */}
+        <div className="glass" style={{ padding: 0, overflow: 'hidden' }}>
+          {filtered.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No banks found</div>
+          )}
+          {filtered.map((b, i) => (
+            <button key={b.code} type="button"
+              onClick={() => {
+                setSendBank(b.code);
+                setSendBankName(b.name);
+                setBankSearch('');
+                setView('send');
+              }}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 16px', textAlign: 'left', cursor: 'pointer',
+                background: sendBank === b.code ? 'rgba(101,23,25,.06)' : 'transparent',
+                border: 'none',
+                borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+                transition: 'background .12s',
+              }}>
+              {/* Bank logo tile */}
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                background: b.color + '18', border: `1.5px solid ${b.color}33`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: b.flag ? 22 : 12, fontWeight: 800, color: b.color,
+              }}>
+                {b.flag ? b.flag : b.short.slice(0, 2)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{b.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  {b.flag === '📱' ? 'Mobile wallet' : 'Bank'} · {viewCurrency.code}
+                </div>
+              </div>
+              {sendBank === b.code && (
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>,
+      { nav: true }
+    );
+  }
+
   /* ════════ SEND ════════ */
   if (view === 'send' && session) {
     const amt    = parseFloat(sendAmount) || 0;
     const total  = amt + (amt > 0 ? FEE : 0);
     const isIntl = viewCurrency.code !== 'NGN';
-    const banks  = getBanksForCurrency(viewCurrency.code);
 
     return shell(
       <div>
         <h2 style={{ marginBottom: 4 }}>Send money</h2>
-        {isIntl ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, background: 'rgba(197,155,68,.08)', border: '1px solid rgba(197,155,68,.3)', borderRadius: 12, padding: '10px 14px' }}>
-            <span style={{ fontSize: 22 }}>{viewCurrency.flag}</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--maroon)' }}>{viewCurrency.code} account view active</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Showing {viewCurrency.code} banks and wallets</div>
-            </div>
-          </div>
-        ) : (
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>Transfer to any Nigerian bank account</p>
-        )}
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>
+          {isIntl
+            ? `${viewCurrency.flag} Sending in ${viewCurrency.code}`
+            : 'Transfer to any Nigerian bank account'}
+        </p>
 
-        <label className="field-label">{isIntl ? `${viewCurrency.code} Bank / Wallet` : 'Bank'}</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, border: '1.5px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 12, background: 'var(--surface)' }}>
-          {/* Hidden native select for accessibility */}
-          <select
-            value={sendBank}
-            onChange={e => setSendBank(e.target.value)}
-            style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
-            aria-hidden>
-            <option value="">Select</option>
-            {banks.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
-          </select>
-          {/* Visual bank picker */}
-          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-            {banks.map((b, i) => (
-              <button
-                key={b.code}
-                type="button"
-                onClick={() => setSendBank(b.code)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
-                  background: sendBank === b.code ? 'rgba(101,23,25,.06)' : 'transparent',
-                  border: 'none',
-                  borderBottom: i < banks.length - 1 ? '1px solid var(--border)' : 'none',
-                }}>
-                {/* Logo / flag */}
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                  background: b.color + '22', border: `1.5px solid ${b.color}44`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: b.flag ? 18 : 11, fontWeight: 800, color: b.color,
-                }}>
-                  {b.flag ? b.flag : b.short.slice(0, 2)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{b.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.country} · {b.flag === '📱' ? 'Mobile wallet' : 'Bank'}</div>
-                </div>
-                {sendBank === b.code && (
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Bank selector — taps to bank-picker page */}
+        <label className="field-label">Bank / Wallet</label>
+        <button type="button"
+          onClick={() => setView('bank-picker')}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+            padding: '14px 16px', borderRadius: 12, marginBottom: 14,
+            border: '1.5px solid var(--border)', background: 'var(--surface)',
+            cursor: 'pointer', textAlign: 'left', transition: 'border-color .15s',
+          }}>
+          {sendBank ? (
+            <>
+              {/* Show selected bank logo */}
+              {(() => {
+                const b = getBanksForCurrency(viewCurrency.code).find(x => x.code === sendBank);
+                return b ? (
+                  <>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: b.color + '18', border: `1.5px solid ${b.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: b.flag ? 18 : 11, fontWeight: 800, color: b.color }}>
+                      {b.flag ? b.flag : b.short.slice(0, 2)}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{b.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.flag === '📱' ? 'Mobile wallet' : 'Bank'}</div>
+                    </div>
+                  </>
+                ) : null;
+              })()}
+              <span style={{ fontSize: 11, color: 'var(--maroon)', fontWeight: 700 }}>Change</span>
+            </>
+          ) : (
+            <>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--surface-soft)', border: '1.5px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 18 }}>🏦</div>
+              <span style={{ fontSize: 14, color: 'var(--muted)' }}>Tap to select bank or wallet</span>
+              <span style={{ marginLeft: 'auto', fontSize: 20, color: 'var(--muted)' }}>›</span>
+            </>
+          )}
+        </button>
 
-        <label className="field-label">Account number {isIntl ? '/ IBAN / Wallet ID' : ''}</label>
-        <input value={sendAcct} onChange={e => setSendAcct(e.target.value.replace(/[^\d\w]/g,'').slice(0, isIntl ? 34 : 10))}
-          placeholder={isIntl ? 'Account number, IBAN or wallet ID' : '10-digit account number'}
+        {/* Account number */}
+        <label className="field-label">Account number{isIntl ? ' / IBAN / Wallet ID' : ''}</label>
+        <input value={sendAcct}
+          onChange={e => setSendAcct(e.target.value.replace(isIntl ? /[^\d\w]/g : /\D/g, '').slice(0, isIntl ? 34 : 10))}
+          placeholder={isIntl ? 'Account number, IBAN or wallet ID' : '10 digits'}
           inputMode={isIntl ? 'text' : 'numeric'}
           className="input" style={{ marginBottom: 8 }} />
         {nameLoading && <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>Looking up account…</p>}
         {sendName && <p style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 12, fontWeight: 600 }}>✓ {sendName}</p>}
 
+        {/* Amount */}
         <label className="field-label">Amount ({viewCurrency.code})</label>
-        <div className="amount-box" style={{ marginBottom: 12 }}>
+        <div className="amount-box" style={{ marginBottom: isIntl && amt > 0 ? 6 : 12 }}>
           <span className="currency">{viewCurrency.symbol}</span>
           <input value={sendAmount} onChange={e => setSendAmount(e.target.value)}
             placeholder="0.00" inputMode="decimal"
             style={{ border: 'none', background: 'transparent', color: 'var(--ink)', fontSize: 22, fontWeight: 700, padding: '12px 10px', width: '100%', outline: 'none' }} />
         </div>
         {isIntl && amt > 0 && (
-          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-            ≈ ₦{(amt * viewCurrency.rate).toLocaleString('en-NG', { minimumFractionDigits: 2 })} · Rate: 1 {viewCurrency.code} = ₦{viewCurrency.rate.toLocaleString()}
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+            ≈ ₦{(amt * viewCurrency.rate).toLocaleString('en-NG', { minimumFractionDigits: 2 })} · 1 {viewCurrency.code} = ₦{viewCurrency.rate.toLocaleString()}
           </p>
         )}
 
+        {/* Note */}
         <label className="field-label">Note (optional)</label>
         <input value={sendNote} onChange={e => setSendNote(e.target.value)}
           placeholder="What is this for?" className="input" style={{ marginBottom: 16 }} />
 
         {amt > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Fee ₦{FEE} · Total debit {fmt(total)}</p>}
 
-        <button type="button" className="btn-gold" disabled={!sendName || amt <= 0 || !session.accountId}
+        <button type="button" className="btn-gold"
+          disabled={!sendBank || !sendAcct || amt <= 0 || !session.accountId}
           onClick={() => {
             setPending(() => async () => {
               if (!session.accountId) return;
               const tx = await apiTransfer({
                 fromAccountId: session.accountId,
                 amount: amt,
-                beneficiaryName: sendName,
+                beneficiaryName: sendName || sendBankName || 'Recipient',
                 beneficiaryAccount: sendAcct,
                 bankCode: sendBank,
                 note: sendNote || undefined,
                 pin,
                 idempotencyKey: uid(),
               });
-              setTxs(prev => [{ ...tx, title: sendName, type: 'send' }, ...prev]);
-              setSuccessMsg(`Sent ${fmt(amt)} to ${sendName}`);
+              setTxs(prev => [{ ...tx, title: sendName || sendBankName || 'Transfer', type: 'send' }, ...prev]);
+              setSuccessMsg(`Sent ${viewCurrency.symbol}${amt.toLocaleString()} to ${sendName || sendBankName || sendAcct}`);
               setSendAmount(''); setSendAcct(''); setSendName(''); setSendNote('');
+              setSendBank(''); setSendBankName('');
               setView('success');
               refreshBalance(session.accountId!);
             });
