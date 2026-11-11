@@ -1,199 +1,232 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import {
-  apiIntlCorridors,
-  apiIntlQuote,
-  apiListIntlTransfers,
-  type IntlCorridor,
-  type IntlQuote,
-} from '@/lib/api';
-import { IconArrowRight, IconCard, IconLandmark, IconWorld } from '@/components/Icons';
-
-type Step = 'corridors' | 'form' | 'confirm';
+import { useState } from 'react';
 
 type Props = {
-  userId: string;
-  onToast: (m: string) => void;
+  userId:          string;
+  onToast:         (m: string) => void;
+  balanceNgn?:     number;           // current NGN balance in kobo
+  activeCurrency?: string;           // e.g. 'NGN', 'USD'
+  onSwitchCurrency: (code: string, symbol: string, rate: number, flag: string) => void;
 };
 
-function formatNGN(n: number) {
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    minimumFractionDigits: 2,
-  }).format(n);
+/* ── All world currencies with live-ish indicative rates to NGN ── */
+const CURRENCIES = [
+  /* Africa */
+  { code: 'NGN', name: 'Nigerian Naira',       flag: '🇳🇬', symbol: '₦',   rate: 1,        region: 'Africa'  },
+  { code: 'GHS', name: 'Ghanaian Cedi',        flag: '🇬🇭', symbol: 'GH₵', rate: 105,      region: 'Africa'  },
+  { code: 'KES', name: 'Kenyan Shilling',      flag: '🇰🇪', symbol: 'KSh', rate: 12.5,     region: 'Africa'  },
+  { code: 'ZAR', name: 'South African Rand',   flag: '🇿🇦', symbol: 'R',   rate: 92,       region: 'Africa'  },
+  { code: 'EGP', name: 'Egyptian Pound',       flag: '🇪🇬', symbol: 'E£',  rate: 50,       region: 'Africa'  },
+  { code: 'ETB', name: 'Ethiopian Birr',       flag: '🇪🇹', symbol: 'Br',  rate: 55,       region: 'Africa'  },
+  { code: 'UGX', name: 'Ugandan Shilling',     flag: '🇺🇬', symbol: 'USh', rate: 0.44,     region: 'Africa'  },
+  { code: 'TZS', name: 'Tanzanian Shilling',   flag: '🇹🇿', symbol: 'TSh', rate: 0.62,     region: 'Africa'  },
+  { code: 'RWF', name: 'Rwandan Franc',        flag: '🇷🇼', symbol: 'RF',  rate: 1.15,     region: 'Africa'  },
+  { code: 'XOF', name: 'West African CFA',     flag: '🌍',  symbol: 'CFA', rate: 2.55,     region: 'Africa'  },
+  /* Americas */
+  { code: 'USD', name: 'US Dollar',            flag: '🇺🇸', symbol: '$',   rate: 1650,     region: 'Americas'},
+  { code: 'CAD', name: 'Canadian Dollar',      flag: '🇨🇦', symbol: 'C$',  rate: 1210,     region: 'Americas'},
+  { code: 'BRL', name: 'Brazilian Real',       flag: '🇧🇷', symbol: 'R$',  rate: 310,      region: 'Americas'},
+  { code: 'MXN', name: 'Mexican Peso',         flag: '🇲🇽', symbol: 'MX$', rate: 95,       region: 'Americas'},
+  /* Europe */
+  { code: 'GBP', name: 'British Pound',        flag: '🇬🇧', symbol: '£',   rate: 2100,     region: 'Europe'  },
+  { code: 'EUR', name: 'Euro',                 flag: '🇪🇺', symbol: '€',   rate: 1780,     region: 'Europe'  },
+  { code: 'CHF', name: 'Swiss Franc',          flag: '🇨🇭', symbol: 'Fr',  rate: 1850,     region: 'Europe'  },
+  { code: 'SEK', name: 'Swedish Krona',        flag: '🇸🇪', symbol: 'kr',  rate: 155,      region: 'Europe'  },
+  { code: 'NOK', name: 'Norwegian Krone',      flag: '🇳🇴', symbol: 'kr',  rate: 155,      region: 'Europe'  },
+  { code: 'PLN', name: 'Polish Złoty',         flag: '🇵🇱', symbol: 'zł',  rate: 410,      region: 'Europe'  },
+  /* Asia */
+  { code: 'CNY', name: 'Chinese Yuan',         flag: '🇨🇳', symbol: '¥',   rate: 230,      region: 'Asia'    },
+  { code: 'JPY', name: 'Japanese Yen',         flag: '🇯🇵', symbol: '¥',   rate: 11,       region: 'Asia'    },
+  { code: 'INR', name: 'Indian Rupee',         flag: '🇮🇳', symbol: '₹',   rate: 20,       region: 'Asia'    },
+  { code: 'KRW', name: 'South Korean Won',     flag: '🇰🇷', symbol: '₩',   rate: 1.22,     region: 'Asia'    },
+  { code: 'SGD', name: 'Singapore Dollar',     flag: '🇸🇬', symbol: 'S$',  rate: 1230,     region: 'Asia'    },
+  { code: 'HKD', name: 'Hong Kong Dollar',     flag: '🇭🇰', symbol: 'HK$', rate: 212,      region: 'Asia'    },
+  { code: 'MYR', name: 'Malaysian Ringgit',    flag: '🇲🇾', symbol: 'RM',  rate: 350,      region: 'Asia'    },
+  { code: 'IDR', name: 'Indonesian Rupiah',    flag: '🇮🇩', symbol: 'Rp',  rate: 0.105,    region: 'Asia'    },
+  { code: 'PHP', name: 'Philippine Peso',      flag: '🇵🇭', symbol: '₱',   rate: 29,       region: 'Asia'    },
+  { code: 'THB', name: 'Thai Baht',            flag: '🇹🇭', symbol: '฿',   rate: 46,       region: 'Asia'    },
+  /* GCC / Middle East */
+  { code: 'AED', name: 'UAE Dirham',           flag: '🇦🇪', symbol: 'AED', rate: 450,      region: 'Middle East'},
+  { code: 'SAR', name: 'Saudi Riyal',          flag: '🇸🇦', symbol: 'SR',  rate: 440,      region: 'Middle East'},
+  { code: 'QAR', name: 'Qatari Riyal',         flag: '🇶🇦', symbol: 'QR',  rate: 453,      region: 'Middle East'},
+  { code: 'KWD', name: 'Kuwaiti Dinar',        flag: '🇰🇼', symbol: 'KD',  rate: 5370,     region: 'Middle East'},
+  { code: 'BHD', name: 'Bahraini Dinar',       flag: '🇧🇭', symbol: 'BD',  rate: 4380,     region: 'Middle East'},
+  /* Oceania */
+  { code: 'AUD', name: 'Australian Dollar',    flag: '🇦🇺', symbol: 'A$',  rate: 1070,     region: 'Oceania' },
+  { code: 'NZD', name: 'New Zealand Dollar',   flag: '🇳🇿', symbol: 'NZ$', rate: 980,      region: 'Oceania' },
+];
+
+const REGIONS = ['All', 'Africa', 'Americas', 'Europe', 'Asia', 'Middle East', 'Oceania'] as const;
+
+function fmt(kobo: number, rate: number, symbol: string, code: string): string {
+  const amount = (kobo / 100) / rate;
+  return `${symbol}${amount.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${code}`;
 }
 
-function CorridorIcon({ id }: { id: string }) {
-  if (id === 'AFRICA' || id === 'EUROPE') return <IconWorld size={22} />;
-  if (id === 'US') return <IconCard size={22} />;
-  return <IconLandmark size={22} />;
-}
+export default function InternationalView({ userId: _userId, onToast, balanceNgn = 0, activeCurrency = 'NGN', onSwitchCurrency }: Props) {
+  const [search,    setSearch]    = useState('');
+  const [region,    setRegion]    = useState<typeof REGIONS[number]>('All');
+  const [confirming, setConfirming] = useState<typeof CURRENCIES[0] | null>(null);
 
-export default function InternationalView({ userId, onToast }: Props) {
-  const [step, setStep] = useState<Step>('corridors');
-  const [corridors, setCorridors] = useState<IntlCorridor[]>([]);
-  const [history, setHistory] = useState<Awaited<ReturnType<typeof apiListIntlTransfers>>>([]);
-  const [loading, setLoading] = useState(false);
+  const filtered = CURRENCIES.filter(c => {
+    const matchRegion = region === 'All' || c.region === region;
+    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
+                        c.code.toLowerCase().includes(search.toLowerCase()) ||
+                        c.flag.includes(search);
+    return matchRegion && matchSearch;
+  });
 
-  const [corridor, setCorridor] = useState<IntlCorridor | null>(null);
-  const [countryCode, setCountryCode] = useState('');
-  const [amount, setAmount] = useState('');
-  const [benName, setBenName] = useState('');
-  const [benAccount, setBenAccount] = useState('');
-  const [benBank, setBenBank] = useState('');
-  const [note, setNote] = useState('');
-  const [quote, setQuote] = useState<IntlQuote | null>(null);
-
-  const load = useCallback(async () => {
-    const [corridorsResult, historyResult] = await Promise.allSettled([
-      apiIntlCorridors(),
-      apiListIntlTransfers(),
-    ]);
-
-    if (corridorsResult.status === 'fulfilled') {
-      setCorridors(corridorsResult.value);
-    } else {
-      onToast(corridorsResult.reason instanceof Error ? corridorsResult.reason.message : 'Could not load corridors');
+  const handleSwitch = (c: typeof CURRENCIES[0]) => {
+    if (c.code === activeCurrency) {
+      onToast(`Already viewing ${c.code}`);
+      return;
     }
-
-    if (historyResult.status === 'fulfilled') {
-      setHistory(historyResult.value);
-    } else {
-      setHistory([]);
-      onToast(historyResult.reason instanceof Error ? historyResult.reason.message : 'Could not load international history');
-    }
-  }, [userId, onToast]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const pickCorridor = (c: IntlCorridor) => {
-    setCorridor(c);
-    setCountryCode(c.countries[0]?.code || '');
-    setQuote(null);
-    setStep('form');
+    setConfirming(c);
   };
 
-  const buildQuote = async () => {
-    if (!corridor || !countryCode) return;
-    const amt = parseFloat(amount);
-    if (!amt || amt < 1000) {
-      onToast('Minimum international send is ₦1,000');
-      return;
-    }
-    if (!benName.trim() || benName.trim().length < 2) {
-      onToast('Enter beneficiary full name');
-      return;
-    }
-    if (!benAccount.trim() || benAccount.trim().length < 5) {
-      onToast('Enter beneficiary account / IBAN / wallet ID');
-      return;
-    }
-    setLoading(true);
-    try {
-      const q = await apiIntlQuote({
-        corridorId: corridor.id,
-        countryCode,
-        amountNgn: amt,
-      });
-      setQuote(q);
-      setStep('confirm');
-    } catch (e: unknown) {
-      onToast(e instanceof Error ? e.message : 'Quote failed');
-    } finally {
-      setLoading(false);
-    }
+  const confirmSwitch = () => {
+    if (!confirming) return;
+    onSwitchCurrency(confirming.code, confirming.symbol, confirming.rate, confirming.flag);
+    onToast(`Account view switched to ${confirming.name} (${confirming.code})`);
+    setConfirming(null);
   };
 
-  if (step === 'confirm' && quote) {
+  /* Confirmation modal */
+  if (confirming) {
+    const converted = balanceNgn > 0
+      ? fmt(balanceNgn, confirming.rate, confirming.symbol, confirming.code)
+      : `${confirming.symbol}0.00 ${confirming.code}`;
     return (
-      <div style={{ paddingBottom: 28 }}>
-        <button type="button" className="btn-ghost" style={{ marginBottom: 12 }} onClick={() => setStep('form')}>← Edit</button>
-        <h2 className="page-title">Confirm transfer</h2>
-        <p className="page-sub">Indicative estimate only — no international payments are connected</p>
-        <div className="glass" style={{ padding: 18 }}>
-          <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.45)' }}>Recipient gets</p>
-          <p style={{ fontSize: 28, fontWeight: 700, color: '#f0d78c', marginTop: 4 }}>{quote.amountForeign} {quote.currency}</p>
-          <p style={{ fontSize: 13, color: 'rgba(247,236,212,0.55)', marginTop: 4 }}>{benName} · {quote.countryName}</p>
-          <div style={{ height: 1, background: 'rgba(212,175,55,0.12)', margin: '14px 0' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginTop: 8 }}><span style={{ color: 'rgba(247,236,212,0.55)' }}>You send</span><span>{formatNGN(quote.amountNgn)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginTop: 8 }}><span style={{ color: 'rgba(247,236,212,0.55)' }}>Fee</span><span>{formatNGN(quote.feeNgn)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginTop: 8 }}><span style={{ color: 'rgba(247,236,212,0.55)' }}>FX rate</span><span>₦{quote.fxRate.toLocaleString()} / {quote.currency}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, marginTop: 8, fontWeight: 700 }}><span style={{ color: 'rgba(247,236,212,0.55)' }}>Total debit</span><span style={{ color: '#f0d78c' }}>{formatNGN(quote.totalDebitNgn)}</span></div>
-          <p style={{ fontSize: 11, color: 'rgba(247,236,212,0.4)', marginTop: 12, lineHeight: 1.5 }}>{quote.settlementNote}</p>
+      <div className="app-page" style={{ maxWidth: 480 }}>
+        <button type="button" className="btn-ghost" style={{ marginBottom: 18 }}
+          onClick={() => setConfirming(null)}>← Back</button>
+        <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>{confirming.flag}</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--maroon)', marginBottom: 4 }}>
+            Switch to {confirming.name}?
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24, lineHeight: 1.6 }}>
+            Your balance will be displayed in <strong>{confirming.code}</strong>.<br />
+            Your money stays in your NGN wallet — this is a display conversion only.
+          </p>
+          <div style={{ background: 'linear-gradient(135deg,#4a1015,#731d21)', borderRadius: 16, padding: '20px', marginBottom: 24, border: '1px solid rgba(197,155,68,.4)' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,248,233,.6)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>Your balance in {confirming.code}</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#f2d995', letterSpacing: '-.01em' }}>{converted}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,248,233,.5)', marginTop: 8 }}>
+              Rate: 1 {confirming.code} = ₦{confirming.rate.toLocaleString('en')}
+            </div>
+          </div>
+          <div className="btn-row">
+            <button type="button" className="btn secondary" onClick={() => setConfirming(null)}>Cancel</button>
+            <button type="button" className="btn-gold" onClick={confirmSwitch}>
+              Switch to {confirming.code}
+            </button>
+          </div>
         </div>
-        <div role="status" style={{ background: 'rgba(240,215,140,0.1)', border: '1px solid rgba(240,215,140,0.32)', borderRadius: 16, color: '#f0d78c', fontSize: 13, lineHeight: 1.6, marginTop: 18, padding: 14 }}>
-          International transfers are unavailable until a licensed payment provider is connected. This estimate is not a payment offer, and no money will be moved.
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'form' && corridor) {
-    return (
-      <div style={{ paddingBottom: 28 }}>
-        <button type="button" className="btn-ghost" style={{ marginBottom: 12 }} onClick={() => setStep('corridors')}>← Corridors</button>
-        <h2 className="page-title corridor-title"><span className="corridor-icon"><CorridorIcon id={corridor.id} /></span>{corridor.label}</h2>
-        <p className="page-sub">{corridor.subtitle}</p>
-        <label className="field-label">Country</label>
-        <select className="input" value={countryCode} onChange={(e) => { setCountryCode(e.target.value); setQuote(null); }} style={{ marginBottom: 12 }}>
-          {corridor.countries.map((c) => (<option key={c.code} value={c.code}>{c.name} ({c.currency})</option>))}
-        </select>
-        <label className="field-label">Amount (NGN)</label>
-        <div className="amount-box" style={{ marginBottom: 12 }}><span className="currency">₦</span><input className="input" placeholder="10000" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
-        <label className="field-label">Beneficiary name</label>
-        <input className="input" placeholder="Full legal name" value={benName} onChange={(e) => setBenName(e.target.value)} style={{ marginBottom: 12 }} />
-        <label className="field-label">Account / IBAN / wallet</label>
-        <input className="input" placeholder="Account number or IBAN" value={benAccount} onChange={(e) => setBenAccount(e.target.value)} style={{ marginBottom: 12 }} />
-        <label className="field-label">Bank / provider (optional)</label>
-        <input className="input" placeholder="e.g. Chase, Barclays, MTN MoMo" value={benBank} onChange={(e) => setBenBank(e.target.value)} style={{ marginBottom: 12 }} />
-        <label className="field-label">Note (optional)</label>
-        <input className="input" placeholder="Payment for…" value={note} onChange={(e) => setNote(e.target.value)} style={{ marginBottom: 16 }} />
-        <p style={{ fontSize: 11, color: 'rgba(247,236,212,0.4)', marginBottom: 12, lineHeight: 1.5 }}>Fee from {corridor.feePct}% (min ₦{corridor.feeMinNgn.toLocaleString()}) · Settles in {corridor.settlementDays}</p>
-        <button type="button" className="btn-gold" disabled={loading} onClick={buildQuote}>{loading ? 'Getting rate…' : 'Get quote'}</button>
       </div>
     );
   }
 
   return (
-    <div style={{ paddingBottom: 28 }}>
-      <h2 className="page-title">Send abroad</h2>
-      <p className="page-sub">Nigeria → Africa, UK, US, GCC & Europe</p>
-      <div role="status" style={{ background: 'rgba(240,215,140,0.1)', border: '1px solid rgba(240,215,140,0.32)', borderRadius: 16, color: '#f0d78c', fontSize: 13, lineHeight: 1.6, marginBottom: 16, padding: 14 }}>
-        International transfers are not available yet. Any shown rates are indicative demo estimates only; no money will be moved.
+    <div className="app-page">
+      <div className="page-title">Currency View</div>
+      <p className="page-sub">Select any currency to view your balance in it. Your NGN wallet is unchanged.</p>
+
+      {/* Active currency banner */}
+      <div style={{ background: 'linear-gradient(135deg,#4a1015,#731d21)', borderRadius: 18, padding: '18px 20px', marginBottom: 20, border: '1px solid rgba(197,155,68,.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'rgba(255,248,233,.6)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 4 }}>Currently viewing</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#f2d995' }}>
+            {CURRENCIES.find(c => c.code === activeCurrency)?.flag ?? '🇳🇬'} {activeCurrency}
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,248,233,.55)', marginTop: 2 }}>
+            {CURRENCIES.find(c => c.code === activeCurrency)?.name}
+          </div>
+        </div>
+        {activeCurrency !== 'NGN' && (
+          <button type="button" className="btn-ghost" style={{ color: 'var(--maroon)', fontSize: 12 }}
+            onClick={() => { onSwitchCurrency('NGN', '₦', 1, '🇳🇬'); onToast('Switched back to NGN'); }}>
+            Reset to NGN
+          </button>
+        )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-        {corridors.map((c) => (
-          <button key={c.id} type="button" className="glass corridor-card" onClick={() => pickCorridor(c)}>
-            <span className="corridor-icon"><CorridorIcon id={c.id} /></span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontWeight: 700, color: '#f0d78c', fontSize: 15 }}>{c.label}</p>
-              <p style={{ fontSize: 12, color: 'rgba(247,236,212,0.5)', marginTop: 2 }}>{c.subtitle}</p>
-              <p style={{ fontSize: 11, color: 'rgba(247,236,212,0.35)', marginTop: 4 }}>Fee from {c.feePct}% · {c.settlementDays}</p>
-            </div>
-            <IconArrowRight size={18} />
+
+      {/* Search */}
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 14 }}>🔍</span>
+        <input className="input" placeholder="Search currency or country…"
+          value={search} onChange={e => setSearch(e.target.value)}
+          style={{ paddingLeft: 36 }} />
+      </div>
+
+      {/* Region filter */}
+      <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 12, marginBottom: 8, scrollbarWidth: 'none' }}>
+        {REGIONS.map(r => (
+          <button key={r} type="button"
+            onClick={() => setRegion(r)}
+            style={{
+              flexShrink: 0, padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              background: region === r ? 'var(--maroon)' : 'var(--surface)',
+              color: region === r ? 'var(--cream)' : 'var(--muted)',
+              border: region === r ? '1px solid var(--maroon)' : '1px solid var(--border)',
+            } as React.CSSProperties}>
+            {r}
           </button>
         ))}
       </div>
-      {history.length > 0 && (
-        <>
-          <h3 style={{ fontSize: 13, color: 'rgba(247,236,212,0.5)', fontWeight: 600, marginBottom: 10, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Recent international</h3>
-          <div className="glass" style={{ padding: '4px 16px' }}>
-            {history.slice(0, 5).map((t) => (
-              <div key={t.id} className="tx-row">
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: 14 }}>{t.beneficiaryName} · {t.currency}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(247,236,212,0.4)', marginTop: 2 }}>{t.corridor} · {t.status}</div>
-                </div>
-                <div style={{ fontWeight: 600, fontSize: 14, color: '#f0d78c' }}>{formatNGN(t.amountNgn)}</div>
+
+      {/* Currency list */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {filtered.length === 0 && (
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No currencies found</div>
+        )}
+        {filtered.map((c, i) => {
+          const isActive = c.code === activeCurrency;
+          const converted = balanceNgn > 0
+            ? fmt(balanceNgn, c.rate, c.symbol, c.code)
+            : null;
+          return (
+            <button key={c.code} type="button"
+              onClick={() => handleSwitch(c)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 18px', textAlign: 'left', cursor: 'pointer',
+                background: isActive ? 'rgba(101,23,25,.06)' : 'transparent',
+                border: 'none',
+                borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+                transition: 'background .12s',
+              }}>
+              {/* Flag */}
+              <span style={{ fontSize: 28, flexShrink: 0, lineHeight: 1 }}>{c.flag}</span>
+              {/* Name + code */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{c.code}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
               </div>
-            ))}
-          </div>
-        </>
-      )}
+              {/* Converted balance */}
+              {converted && (
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? 'var(--maroon)' : 'var(--ink)' }}>{converted}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>₦{c.rate.toLocaleString()}/{c.code}</div>
+                </div>
+              )}
+              {/* Active badge */}
+              {isActive && (
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 16, lineHeight: 1.6 }}>
+        Rates are indicative. Your money remains in your NGN wallet at all times.
+      </p>
     </div>
   );
 }

@@ -33,6 +33,16 @@ function uid() {
   return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `id_${Date.now()}`;
 }
 
+// Switch icon SVG
+function IconSwitch({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 16V4m0 0L3 8m4-4l4 4"/>
+      <path d="M17 8v12m0 0l4-4m-4 4l-4-4"/>
+    </svg>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, [string, string]> = {
     COMPLETED:  ['rgba(40,119,78,.12)', 'var(--ok)'],
@@ -59,6 +69,9 @@ export default function BankApp() {
   const [txCursor, setTxCursor]     = useState<string | null>(null);
   const [txHasMore, setTxHasMore]   = useState(false);
   const [loading, setLoading]       = useState(false);
+
+  // Currency view state — user can switch display currency without moving money
+  const [viewCurrency, setViewCurrency] = useState({ code: 'NGN', symbol: '₦', rate: 1, flag: '🇳🇬' });
 
   // send form
   const [sendAmount, setSendAmount] = useState('');
@@ -312,7 +325,16 @@ export default function BankApp() {
 
   if (view === 'business-demo') return shell(<BusinessDemoView onBack={() => setView('landing')} />);
   if (view === 'business' && session) return shell(<BusinessView fullName={session.fullName} onToast={toast$} />, { nav: true });
-  if (view === 'international' && session) return shell(<InternationalView userId={session.id} onToast={toast$} />, { nav: true });
+  if (view === 'international' && session) return shell(<InternationalView
+    userId={session.id}
+    onToast={toast$}
+    balanceNgn={(balance?.balance ?? 0) * 100}
+    activeCurrency={viewCurrency.code}
+    onSwitchCurrency={(code, symbol, rate, flag) => {
+      setViewCurrency({ code, symbol, rate, flag });
+      setView('home');
+    }}
+  />, { nav: true });
 
   /* ════════ PIN GATE ════════ */
   if (view === 'pin') return shell(
@@ -368,12 +390,38 @@ export default function BankApp() {
       <section className="balance-card" aria-label="Available balance">
         <div className="balance-label">
           <span>Available balance</span>
-          <button type="button" aria-label={showBal ? 'Hide balance' : 'Show balance'} onClick={() => setShowBal(b => !b)}>
-            {showBal ? <IconEye /> : <IconEyeOff />}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Switch currency button */}
+            <button
+              type="button"
+              aria-label="Switch currency"
+              title="Switch currency view"
+              onClick={() => setView('international')}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,248,233,.15)', border: '1px solid rgba(255,248,233,.25)', borderRadius: 8, color: '#f2d995', fontSize: 11, fontWeight: 700, padding: '5px 9px', cursor: 'pointer' }}>
+              <IconSwitch size={12} />
+              {viewCurrency.code !== 'NGN' ? viewCurrency.flag + ' ' + viewCurrency.code : 'Switch'}
+            </button>
+            <button type="button" aria-label={showBal ? 'Hide balance' : 'Show balance'} onClick={() => setShowBal(b => !b)}>
+              {showBal ? <IconEye /> : <IconEyeOff />}
+            </button>
+          </div>
         </div>
-        <div className="balance-amount">{showBal ? (balance?.formatted ?? '₦0.00') : '••••••••'}</div>
-        <div className="balance-caption">Naira wallet <span>•</span> NGN</div>
+        {/* Balance in active currency */}
+        {showBal ? (
+          viewCurrency.code === 'NGN'
+            ? <div className="balance-amount">{balance?.formatted ?? '₦0.00'}</div>
+            : <div className="balance-amount">
+                {viewCurrency.flag} {viewCurrency.symbol}{(((balance?.balance ?? 0)) / viewCurrency.rate).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+        ) : (
+          <div className="balance-amount">••••••••</div>
+        )}
+        <div className="balance-caption">
+          {viewCurrency.code === 'NGN'
+            ? <>Naira wallet <span>•</span> NGN</>
+            : <>{viewCurrency.flag} {viewCurrency.code} view <span>•</span> <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setViewCurrency({ code: 'NGN', symbol: '₦', rate: 1, flag: '🇳🇬' })}>Reset to NGN</span></>
+          }
+        </div>
         {session.accountNumber && (
           <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,.18)', borderRadius: 10, padding: '8px 12px' }}>
             <div>
