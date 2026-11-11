@@ -65,9 +65,8 @@ function fmt(kobo: number, rate: number, symbol: string, code: string): string {
 }
 
 export default function InternationalView({ userId: _userId, onToast, balanceNgn = 0, activeCurrency = 'NGN', onSwitchCurrency }: Props) {
-  const [search,    setSearch]    = useState('');
-  const [region,    setRegion]    = useState<typeof REGIONS[number]>('All');
-  const [confirming, setConfirming] = useState<typeof CURRENCIES[0] | null>(null);
+  const [search,  setSearch]  = useState('');
+  const [region,  setRegion]  = useState<typeof REGIONS[number]>('All');
 
   const filtered = CURRENCIES.filter(c => {
     const matchRegion = region === 'All' || c.region === region;
@@ -82,51 +81,12 @@ export default function InternationalView({ userId: _userId, onToast, balanceNgn
       onToast(`Already viewing ${c.code}`);
       return;
     }
-    setConfirming(c);
+    // Switch immediately — no confirmation screen
+    onSwitchCurrency(c.code, c.symbol, c.rate, c.flag);
+    onToast(`Switched to ${c.name} (${c.code})`);
   };
 
-  const confirmSwitch = () => {
-    if (!confirming) return;
-    onSwitchCurrency(confirming.code, confirming.symbol, confirming.rate, confirming.flag);
-    onToast(`Account view switched to ${confirming.name} (${confirming.code})`);
-    setConfirming(null);
-  };
-
-  /* Confirmation modal */
-  if (confirming) {
-    const converted = balanceNgn > 0
-      ? fmt(balanceNgn, confirming.rate, confirming.symbol, confirming.code)
-      : `${confirming.symbol}0.00 ${confirming.code}`;
-    return (
-      <div className="app-page" style={{ maxWidth: 480 }}>
-        <button type="button" className="btn-ghost" style={{ marginBottom: 18 }}
-          onClick={() => setConfirming(null)}>← Back</button>
-        <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
-          <div style={{ fontSize: 56, marginBottom: 12 }}>{confirming.flag}</div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--maroon)', marginBottom: 4 }}>
-            Switch to {confirming.name}?
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24, lineHeight: 1.6 }}>
-            Your balance will be displayed in <strong>{confirming.code}</strong>.<br />
-            Your money stays in your NGN wallet — this is a display conversion only.
-          </p>
-          <div style={{ background: 'linear-gradient(135deg,#4a1015,#731d21)', borderRadius: 16, padding: '20px', marginBottom: 24, border: '1px solid rgba(197,155,68,.4)' }}>
-            <div style={{ fontSize: 11, color: 'rgba(255,248,233,.6)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>Your balance in {confirming.code}</div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: '#f2d995', letterSpacing: '-.01em' }}>{converted}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,248,233,.5)', marginTop: 8 }}>
-              Rate: 1 {confirming.code} = ₦{confirming.rate.toLocaleString('en')}
-            </div>
-          </div>
-          <div className="btn-row">
-            <button type="button" className="btn secondary" onClick={() => setConfirming(null)}>Cancel</button>
-            <button type="button" className="btn-gold" onClick={confirmSwitch}>
-              Switch to {confirming.code}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  /* Confirmation modal removed — switches happen immediately */
 
   return (
     <div className="app-page">

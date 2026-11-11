@@ -24,8 +24,8 @@ html, body {
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
-  /* prevent pull-to-refresh bounce showing white */
   overscroll-behavior: none;
+  font-size: 16px;
 }
 
 button, input, select { font: inherit; }
@@ -183,9 +183,9 @@ select.input option { background: #fffefa; color: var(--ink); }
 .nav-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   background: none; border: none; color: #978a80;
-  font-size: 10px; font-weight: 600; cursor: pointer;
+  font-size: 11px; font-weight: 600; cursor: pointer;
   padding: 6px 10px;
-  min-width: 56px; min-height: 44px; /* touch target */
+  min-width: 56px; min-height: 44px;
   font-family: inherit;
   -webkit-tap-highlight-color: transparent;
 }
@@ -227,10 +227,10 @@ select.input option { background: #fffefa; color: var(--ink); }
 }
 .tx-row:last-child { border-bottom: none; }
 
-.page-title { color: var(--maroon); font-size: 23px; font-weight: 800; margin-bottom: 6px; letter-spacing: -.025em; }
-.page-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; font-weight: 500; }
+.page-title { color: var(--maroon); font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -.025em; }
+.page-sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; font-weight: 500; }
 .field-label {
-  display: block; font-size: 11px; font-weight: 700;
+  display: block; font-size: 12px; font-weight: 700;
   color: #73655c; margin-bottom: 7px;
   letter-spacing: .045em; text-transform: uppercase;
 }
