@@ -84,7 +84,15 @@ export function clearSessionCookie(response: NextResponse) {
 }
 
 export function hasSameOriginRequest(request: NextRequest): boolean {
-  return request.headers.get('origin') === request.nextUrl.origin;
+  const origin = request.headers.get('origin');
+  // Allow requests with no origin header (same-site navigation, mobile apps)
+  if (!origin) return true;
+  // Allow if origin matches the request URL origin
+  try {
+    return new URL(origin).origin === request.nextUrl.origin;
+  } catch {
+    return false;
+  }
 }
 
 export function getAuthenticatedUserId(request: NextRequest): string | null {

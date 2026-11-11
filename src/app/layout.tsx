@@ -4,21 +4,27 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Nakconel Bank — Secure. Simple. Global.',
   description: 'Our world. Our bank. A better tomorrow.',
-  manifest: '/manifest.json',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,          // prevent user zoom on inputs (matches native app feel)
+  maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover',     // fill the iPhone notch / home indicator area
-  themeColor: '#651719',    // maroon — matches the header on mobile browser chrome
+  viewportFit: 'cover',
+  themeColor: '#651719',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body>{children}</body>
     </html>
   );
