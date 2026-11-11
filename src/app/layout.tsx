@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Nakconel Bank — Secure. Simple. Global.',
-  description: 'Banking for today, building for tomorrow.',
+  description: 'Our world. Our bank. A better tomorrow.',
   manifest: '/manifest.json',
 };
 

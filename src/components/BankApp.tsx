@@ -284,7 +284,7 @@ export default function BankApp() {
         <div className="landing-hero" style={{ marginTop: 72 }}>
           <Logo size={80} />
           <p className="welcome-kicker">Secure · Simple · Global</p>
-          <h1>Banking for today,<br />building for tomorrow.</h1>
+          <h1>Our world. Our bank.<br />A better tomorrow.</h1>
           <p>Everyday money and business tools, designed to move with you.</p>
         </div>
         {/* Buttons */}
