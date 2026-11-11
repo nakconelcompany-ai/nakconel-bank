@@ -113,7 +113,23 @@ export default function BankApp() {
   useEffect(() => {
     let dead = false;
     apiSession()
-      .then(s => { if (dead) return; setSession(s); setView('home'); if (s.accountId) refreshBalance(s.accountId); })
+      .then(s => {
+        if (dead) return;
+        setSession(s);
+        setView('home');
+        if (s.accountId) {
+          refreshBalance(s.accountId);
+          // Load recent transactions immediately so home screen shows real data
+          apiTransferHistory(s.accountId)
+            .then(r => {
+              if (dead) return;
+              setTxs(r.items);
+              setTxCursor(r.nextCursor);
+              setTxHasMore(r.hasMore);
+            })
+            .catch(() => { /* non-fatal — history just stays empty */ });
+        }
+      })
       .catch(() => { if (!dead) { setSession(null); setView('landing'); } })
       .finally(() => { try { localStorage.removeItem(SESSION_KEY); } catch { /**/ } if (!dead) setRestoring(false); });
     return () => { dead = true; };
@@ -131,12 +147,15 @@ export default function BankApp() {
     window.history.replaceState({}, '', u);
   }, [toast$]);
 
-  // load history when view changes
+  // load history when view changes — always reload to get latest
   useEffect(() => {
-    if (view !== 'history' || !session?.accountId || txs.length > 0) return;
+    if (view !== 'history' || !session?.accountId) return;
+    setTxs([]);
+    setTxCursor(null);
+    setTxHasMore(false);
     loadHistory();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, session]);
+  }, [view, session?.accountId]);
 
   // load kyc status
   useEffect(() => {
