@@ -10,7 +10,7 @@ import BusinessView from '@/components/BusinessView';
 import BusinessDemoView from '@/components/BusinessDemoView';
 import SignupFlow from '@/components/SignupFlow';
 import InternationalView from '@/components/InternationalView';
-import { NG_BANKS, resolveAccountName } from '@/lib/banks';
+import { NG_BANKS, getBanksForCurrency, resolveAccountName } from '@/lib/banks';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconWorld, IconArrowRight,
   IconHistory, IconUser, IconBiz, IconEye, IconEyeOff, IconCard, IconCheck,
@@ -485,31 +485,94 @@ export default function BankApp() {
 
   /* ════════ SEND ════════ */
   if (view === 'send' && session) {
-    const amt = parseFloat(sendAmount) || 0;
-    const total = amt + (amt > 0 ? FEE : 0);
+    const amt    = parseFloat(sendAmount) || 0;
+    const total  = amt + (amt > 0 ? FEE : 0);
+    const isIntl = viewCurrency.code !== 'NGN';
+    const banks  = getBanksForCurrency(viewCurrency.code);
+
     return shell(
       <div>
         <h2 style={{ marginBottom: 4 }}>Send money</h2>
-        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>Transfer to any Nigerian bank account</p>
+        {isIntl ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, background: 'rgba(197,155,68,.08)', border: '1px solid rgba(197,155,68,.3)', borderRadius: 12, padding: '10px 14px' }}>
+            <span style={{ fontSize: 22 }}>{viewCurrency.flag}</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--maroon)' }}>{viewCurrency.code} account view active</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Showing {viewCurrency.code} banks and wallets</div>
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>Transfer to any Nigerian bank account</p>
+        )}
 
-        <label className="field-label">Bank</label>
-        <select value={sendBank} onChange={e => setSendBank(e.target.value)} className="input" style={{ marginBottom: 12 }}>
-          <option value="">Select bank</option>
-          {NG_BANKS.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
-        </select>
+        <label className="field-label">{isIntl ? `${viewCurrency.code} Bank / Wallet` : 'Bank'}</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, border: '1.5px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 12, background: 'var(--surface)' }}>
+          {/* Hidden native select for accessibility */}
+          <select
+            value={sendBank}
+            onChange={e => setSendBank(e.target.value)}
+            style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+            aria-hidden>
+            <option value="">Select</option>
+            {banks.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+          </select>
+          {/* Visual bank picker */}
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {banks.map((b, i) => (
+              <button
+                key={b.code}
+                type="button"
+                onClick={() => setSendBank(b.code)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px', textAlign: 'left', cursor: 'pointer',
+                  background: sendBank === b.code ? 'rgba(101,23,25,.06)' : 'transparent',
+                  border: 'none',
+                  borderBottom: i < banks.length - 1 ? '1px solid var(--border)' : 'none',
+                }}>
+                {/* Logo / flag */}
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: b.color + '22', border: `1.5px solid ${b.color}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: b.flag ? 18 : 11, fontWeight: 800, color: b.color,
+                }}>
+                  {b.flag ? b.flag : b.short.slice(0, 2)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>{b.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.country} · {b.flag === '📱' ? 'Mobile wallet' : 'Bank'}</div>
+                </div>
+                {sendBank === b.code && (
+                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <label className="field-label">Account number</label>
-        <input value={sendAcct} onChange={e => setSendAcct(e.target.value.replace(/\D/g,'').slice(0,10))}
-          placeholder="10 digits" inputMode="numeric" className="input" style={{ marginBottom: 8 }} />
+        <label className="field-label">Account number {isIntl ? '/ IBAN / Wallet ID' : ''}</label>
+        <input value={sendAcct} onChange={e => setSendAcct(e.target.value.replace(/[^\d\w]/g,'').slice(0, isIntl ? 34 : 10))}
+          placeholder={isIntl ? 'Account number, IBAN or wallet ID' : '10-digit account number'}
+          inputMode={isIntl ? 'text' : 'numeric'}
+          className="input" style={{ marginBottom: 8 }} />
         {nameLoading && <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>Looking up account…</p>}
         {sendName && <p style={{ fontSize: 13, color: 'var(--ok)', marginBottom: 12, fontWeight: 600 }}>✓ {sendName}</p>}
 
-        <label className="field-label">Amount (₦)</label>
+        <label className="field-label">Amount ({viewCurrency.code})</label>
         <div className="amount-box" style={{ marginBottom: 12 }}>
-          <span className="currency">₦</span>
+          <span className="currency">{viewCurrency.symbol}</span>
           <input value={sendAmount} onChange={e => setSendAmount(e.target.value)}
-            placeholder="0.00" inputMode="decimal" style={{ border: 'none', background: 'transparent', color: 'var(--ink)', fontSize: 22, fontWeight: 700, padding: '12px 10px', width: '100%', outline: 'none' }} />
+            placeholder="0.00" inputMode="decimal"
+            style={{ border: 'none', background: 'transparent', color: 'var(--ink)', fontSize: 22, fontWeight: 700, padding: '12px 10px', width: '100%', outline: 'none' }} />
         </div>
+        {isIntl && amt > 0 && (
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+            ≈ ₦{(amt * viewCurrency.rate).toLocaleString('en-NG', { minimumFractionDigits: 2 })} · Rate: 1 {viewCurrency.code} = ₦{viewCurrency.rate.toLocaleString()}
+          </p>
+        )}
 
         <label className="field-label">Note (optional)</label>
         <input value={sendNote} onChange={e => setSendNote(e.target.value)}
