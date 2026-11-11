@@ -281,17 +281,17 @@ export default function BankApp() {
           <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
         </header>
 
-        {/* Mobile layout — single column */}
+        {/* Hero card — compact on desktop too */}
         <div className="landing-left" style={{ marginTop: 72 }}>
-          <div className="landing-hero">
-            <Logo size={80} />
+          <div className="landing-hero landing-hero--compact">
+            <Logo size={64} />
             <p className="welcome-kicker">Secure · Simple · Global</p>
             <h1>Our world. Our bank.<br />A better tomorrow.</h1>
             <p>Everyday money and business tools, designed to move with you.</p>
           </div>
         </div>
 
-        {/* Actions + features (stacks on mobile, right column on desktop) */}
+        {/* Buttons — always directly below hero */}
         <div className="landing-right landing-actions">
           <button type="button" className="btn-gold" onClick={() => { setAuthTab('signup'); setView('auth'); }}>
             Get started
@@ -299,20 +299,6 @@ export default function BankApp() {
           <button type="button" className="btn-outline" onClick={() => { setAuthTab('login'); setView('auth'); }}>
             I already have an account
           </button>
-          {/* Feature tiles — only visible on desktop */}
-          <div className="landing-features">
-            {[
-              { title: 'Instant transfers', desc: 'Send money to any Nigerian bank in seconds' },
-              { title: 'Business banking', desc: 'Invoices, expenses and team payroll' },
-              { title: 'International', desc: 'Send abroad across 5 corridors' },
-              { title: 'KYC & Security', desc: 'Face verification and BVN-backed identity' },
-            ].map(f => (
-              <div key={f.title} className="landing-feature">
-                <strong>{f.title}</strong>
-                <span>{f.desc}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     );

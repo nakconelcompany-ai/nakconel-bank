@@ -306,50 +306,40 @@ select.input option { background: #fffefa; color: var(--ink); }
   gap: 10px;
 }
 
-/* Desktop landing — side-by-side layout */
+/* Desktop landing — centred column, compact hero */
 @media (min-width: 700px) {
   .landing-screen {
-    flex-direction: row;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 64px;
-    padding: 60px 48px;
+    gap: 20px;
+    padding: 80px 48px 60px;
     min-height: 100dvh;
-    background:
-      radial-gradient(ellipse 60% 60% at 20% 50%, rgba(197,155,68,.06), transparent 60%),
-      var(--bg);
   }
   .landing-left {
-    flex: 1;
+    width: 100%;
     max-width: 480px;
-    text-align: left;
   }
-  .landing-left .landing-hero {
-    max-width: 100%;
-    text-align: left;
-    align-items: flex-start;
-    padding: 48px 40px;
+  .landing-hero--compact {
+    max-width: 480px;
+    padding: 40px 40px 36px;
     border-radius: 28px;
     box-shadow: 0 16px 48px rgba(62,12,17,.1);
+    text-align: center;
+    align-items: center;
   }
-  .landing-left .landing-hero h1 {
-    font-size: clamp(32px, 4vw, 48px);
-    text-align: left;
+  .landing-hero--compact h1 {
+    font-size: clamp(28px, 3.5vw, 40px);
+    text-align: center;
   }
-  .landing-left .landing-hero p {
-    text-align: left;
-    max-width: 340px;
+  .landing-hero--compact p {
+    text-align: center;
+    max-width: 320px;
     font-size: 15px;
-    margin: 0;
-  }
-  .landing-left .landing-hero .welcome-kicker {
-    text-align: left;
   }
   .landing-right {
-    flex: 0 0 360px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    width: 100%;
+    max-width: 480px;
   }
   .landing-right .btn-gold,
   .landing-right .btn-outline {
@@ -357,29 +347,8 @@ select.input option { background: #fffefa; color: var(--ink); }
     font-size: 15px;
     padding: 17px 20px;
   }
-  .landing-features {
-    margin-top: 20px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .landing-feature {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px 16px;
-  }
-  .landing-feature strong {
-    display: block;
-    font-size: 13px;
-    color: var(--maroon);
-    margin-bottom: 3px;
-  }
-  .landing-feature span {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.5;
-  }
+  /* hide the feature grid since it's removed */
+  .landing-features { display: none; }
 }
 .home-greeting { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
 .home-greeting .eyebrow { color:var(--muted); font-size:12px; }
