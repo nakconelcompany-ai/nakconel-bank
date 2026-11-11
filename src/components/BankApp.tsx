@@ -271,8 +271,8 @@ export default function BankApp() {
     );
     return (
       <div className="landing-screen">
-        {/* Header */}
-        <header className="brand-header" style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 500, zIndex: 40 }}>
+        {/* Sticky header */}
+        <header className="brand-header" style={{ position: 'fixed', top: 0, left: 0, right: 0, width: '100%', maxWidth: '100%', zIndex: 40 }}>
           <Logo size={40} className="brand-logo" />
           <div className="brand-copy">
             <div className="brand-name">NAKCONEL</div>
@@ -280,23 +280,39 @@ export default function BankApp() {
           </div>
           <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
         </header>
-        {/* Hero card */}
-        <div className="landing-hero" style={{ marginTop: 72 }}>
-          <Logo size={80} />
-          <p className="welcome-kicker">Secure · Simple · Global</p>
-          <h1>Our world. Our bank.<br />A better tomorrow.</h1>
-          <p>Everyday money and business tools, designed to move with you.</p>
+
+        {/* Mobile layout — single column */}
+        <div className="landing-left" style={{ marginTop: 72 }}>
+          <div className="landing-hero">
+            <Logo size={80} />
+            <p className="welcome-kicker">Secure · Simple · Global</p>
+            <h1>Our world. Our bank.<br />A better tomorrow.</h1>
+            <p>Everyday money and business tools, designed to move with you.</p>
+          </div>
         </div>
-        {/* Buttons */}
-        <div className="landing-actions">
-          <button type="button" className="btn-gold"
-            onClick={() => { setAuthTab('signup'); setView('auth'); }}>
+
+        {/* Actions + features (stacks on mobile, right column on desktop) */}
+        <div className="landing-right landing-actions">
+          <button type="button" className="btn-gold" onClick={() => { setAuthTab('signup'); setView('auth'); }}>
             Get started
           </button>
-          <button type="button" className="btn-outline"
-            onClick={() => { setAuthTab('login'); setView('auth'); }}>
+          <button type="button" className="btn-outline" onClick={() => { setAuthTab('login'); setView('auth'); }}>
             I already have an account
           </button>
+          {/* Feature tiles — only visible on desktop */}
+          <div className="landing-features">
+            {[
+              { title: 'Instant transfers', desc: 'Send money to any Nigerian bank in seconds' },
+              { title: 'Business banking', desc: 'Invoices, expenses and team payroll' },
+              { title: 'International', desc: 'Send abroad across 5 corridors' },
+              { title: 'KYC & Security', desc: 'Face verification and BVN-backed identity' },
+            ].map(f => (
+              <div key={f.title} className="landing-feature">
+                <strong>{f.title}</strong>
+                <span>{f.desc}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -372,6 +388,20 @@ export default function BankApp() {
         </div>
         <div className="balance-amount">{showBal ? (balance?.formatted ?? '₦0.00') : '••••••••'}</div>
         <div className="balance-caption">Naira wallet <span>•</span> NGN</div>
+        {session.accountNumber && (
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,.18)', borderRadius: 10, padding: '8px 12px' }}>
+            <div>
+              <div style={{ fontSize: 10, color: 'rgba(255,248,233,.55)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 2 }}>Account number</div>
+              <div style={{ color: '#f2d995', fontWeight: 700, fontSize: 15, letterSpacing: '.06em' }}>{session.accountNumber}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard?.writeText(session.accountNumber!).then(() => toast$('Account number copied!')).catch(() => toast$(session.accountNumber!)); }}
+              style={{ background: 'rgba(255,248,233,.12)', border: '1px solid rgba(255,248,233,.2)', borderRadius: 8, color: '#f2d995', fontSize: 11, fontWeight: 700, padding: '6px 10px', cursor: 'pointer' }}>
+              Copy
+            </button>
+          </div>
+        )}
       </section>
 
       <div className="quick-actions">

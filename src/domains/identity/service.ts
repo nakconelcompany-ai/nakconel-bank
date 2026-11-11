@@ -13,6 +13,17 @@ function normalizePhone(raw: string): string {
   return d.slice(0, 11);
 }
 
+/** Generate a unique 10-digit account number */
+async function generateAccountNumber(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    // Start with 9 (like most Nigerian banks) + 9 random digits
+    const num = '9' + String(Math.floor(Math.random() * 1_000_000_000)).padStart(9, '0');
+    const existing = await prisma.account.findFirst({ where: { accountNumber: num } });
+    if (!existing) return num;
+  }
+  throw new Error('Could not generate a unique account number. Please try again.');
+}
+
 /** Hash a plain OTP code so we never store it in plaintext */
 function hashCode(code: string): string {
   return createHash('sha256').update(`otp:${code}`).digest('hex');
@@ -73,6 +84,8 @@ export async function registerUser(input: {
     hashPin(input.pin),
   ]);
 
+  const accountNumber = await generateAccountNumber();
+
   const user = await prisma.user.create({
     data: {
       email,
@@ -82,7 +95,7 @@ export async function registerUser(input: {
       passwordHash,
       pinHash,
       kycStatus: 'NONE',
-      accounts: { create: { currency: 'NGN', status: 'ACTIVE' } },
+      accounts: { create: { currency: 'NGN', status: 'ACTIVE', accountNumber } },
     },
     include: { accounts: true },
   });
@@ -90,12 +103,13 @@ export async function registerUser(input: {
   await writeAudit({ userId: user.id, action: 'USER_REGISTERED', resource: 'user', resourceId: user.id });
 
   return {
-    id:        user.id,
-    email:     user.email,
-    fullName:  user.fullName,
-    phone:     user.phone ?? undefined,
-    accountId: user.accounts[0]?.id,
-    kycStatus: user.kycStatus,
+    id:            user.id,
+    email:         user.email,
+    fullName:      user.fullName,
+    phone:         user.phone ?? undefined,
+    accountId:     user.accounts[0]?.id,
+    accountNumber: user.accounts[0]?.accountNumber ?? undefined,
+    kycStatus:     user.kycStatus,
   };
 }
 
@@ -117,12 +131,13 @@ export async function loginUser(emailOrPhone: string, password: string) {
   await writeAudit({ userId: user.id, action: 'USER_LOGIN', resource: 'user', resourceId: user.id });
 
   return {
-    id:        user.id,
-    email:     user.email,
-    fullName:  user.fullName,
-    phone:     user.phone ?? undefined,
-    kycStatus: user.kycStatus,
-    accountId: user.accounts[0]?.id,
+    id:            user.id,
+    email:         user.email,
+    fullName:      user.fullName,
+    phone:         user.phone ?? undefined,
+    kycStatus:     user.kycStatus,
+    accountId:     user.accounts[0]?.id,
+    accountNumber: user.accounts[0]?.accountNumber ?? undefined,
   };
 }
 

@@ -20,7 +20,7 @@ function isValidEmail(e: string) {
 }
 
 /* ─── types ─── */
-type SignupStep = 'phone-email' | 'otp' | 'identity' | 'face' | 'profile' | 'password' | 'success';
+type SignupStep = 'phone-email' | 'otp' | 'identity' | 'face' | 'profile' | 'password' | 'account-number' | 'success';
 type LoginStep  = 'phone' | 'password';
 type ForgotStep = 'email' | 'otp' | 'new-password' | 'done';
 
@@ -101,7 +101,7 @@ function PinKeypad({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 /* ─── step progress dots ─── */
-const SIGNUP_STEPS: SignupStep[] = ['phone-email','otp','identity','face','profile','password'];
+const SIGNUP_STEPS: SignupStep[] = ['phone-email','otp','identity','face','profile','password','account-number'];
 function StepDots({ current }: { current: SignupStep }) {
   const idx = SIGNUP_STEPS.indexOf(current);
   return (
@@ -142,6 +142,8 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
   const [sPin, setSPin]             = useState('');
   const [sPin2, setSPin2]           = useState('');
   const [sPinStep, setSPinStep]     = useState<'create'|'confirm'>('create');
+  const [sAccountNumber, setSAccountNumber] = useState('');
+  const [sSession, setSSession]             = useState<Session | null>(null);
 
   /* ── login state ── */
   const [lStep, setLStep]       = useState<LoginStep>('phone');
@@ -288,9 +290,11 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     });
     const json = await res.json();
     if (!res.ok || !json.success) throw new Error(json.error ?? 'Registration failed');
-    setSStep('success');
+    const registeredSession = json.data as Session;
+    setSAccountNumber(registeredSession.accountNumber ?? '');
+    setSSession(registeredSession);
+    setSStep('account-number');
     onToast(`Welcome to Nakconel Bank, ${sFullName.split(' ')[0]}!`);
-    setTimeout(() => onSuccess(json.data as Session), 1600);
   });
 
   const handlePinCreate  = (v: string) => { setSPin(v); if (v.length === 4) { setSPin2(v); setSPinStep('confirm'); setSPin(''); } };
@@ -479,7 +483,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     /* Step: phone + email */
     if (sStep === 'phone-email') return card('Create account', <>
       <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Get started</p>
-      <p style={{ fontSize: 12, color: 'var(--muted)' }}>Your phone number becomes your Nakconel account number</p>
+      <p style={{ fontSize: 12, color: 'var(--muted)' }}>Enter your phone number and email to create your account</p>
       <label className="field-label">Phone number</label>
       <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 8 }}>
         <input className="input" value="+234" readOnly style={{ textAlign: 'center', color: 'var(--muted)' }} />
@@ -487,7 +491,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
           placeholder="080 1234 5678" value={sPhone} onChange={e => setSPhone(e.target.value)} />
       </div>
       {isValidNgPhone(sPhone) && (
-        <p style={{ fontSize: 12, color: 'var(--ok)' }}>Account number: <strong>{normalizePhone(sPhone)}</strong></p>
+        <p style={{ fontSize: 12, color: 'var(--ok)' }}>✓ Valid Nigerian number</p>
       )}
       <label className="field-label">Email address</label>
       <input className="input" type="email" placeholder="you@email.com"
@@ -643,6 +647,45 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
       )}
     </>);
 
+    /* Step: account number reveal */
+    if (sStep === 'account-number') return card('', <>
+      <div style={{ textAlign: 'center', paddingTop: 8 }}>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(40,119,78,.12)', border: '2px solid var(--ok)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <IconCheck size={40} color="var(--ok)" />
+        </div>
+        <p style={{ fontWeight: 800, fontSize: 20, color: 'var(--maroon)', marginBottom: 6 }}>Your Account Number</p>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20, lineHeight: 1.6 }}>
+          This is your unique Nakconel Bank account number.<br />Save it — you will need it to receive money.
+        </p>
+        {/* Account number card */}
+        <div style={{ background: 'linear-gradient(135deg,#4a1015,#731d21 60%,#8a3026)', borderRadius: 18, padding: '24px 20px', border: '1px solid rgba(197,155,68,.5)', marginBottom: 20, position: 'relative', overflow: 'hidden' }}>
+          <p style={{ color: 'rgba(255,248,233,.65)', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 10 }}>Account Number</p>
+          <p style={{ color: '#f2d995', fontSize: 32, fontWeight: 800, letterSpacing: '.12em', fontFamily: 'Georgia, serif', marginBottom: 6 }}>
+            {sAccountNumber || '––––––––––'}
+          </p>
+          <p style={{ color: 'rgba(255,248,233,.7)', fontSize: 13, marginBottom: 0 }}>{sFullName}</p>
+          <p style={{ color: 'rgba(255,248,233,.55)', fontSize: 11, marginTop: 4 }}>Nakconel Bank · NGN</p>
+        </div>
+        <button type="button" className="btn-gold" style={{ marginBottom: 10 }}
+          onClick={() => {
+            if (sAccountNumber) {
+              navigator.clipboard?.writeText(sAccountNumber)
+                .then(() => onToast('Account number copied!'))
+                .catch(() => onToast(sAccountNumber));
+            }
+          }}>
+          Copy account number
+        </button>
+        <button type="button" className="btn-outline"
+          onClick={() => { if (sSession) onSuccess(sSession); else setSStep('success'); }}>
+          Continue to dashboard
+        </button>
+        {sSelfie && (
+          <img src={sSelfie} alt="Profile" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', margin: '16px auto 0', display: 'block' }} />
+        )}
+      </div>
+    </>, false);
+
     /* Step: success */
     if (sStep === 'success') return card('', <>
       <div style={{ textAlign: 'center', paddingTop: 16 }}>
@@ -651,15 +694,15 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
         </div>
         <p style={{ fontWeight: 800, fontSize: 20, color: 'var(--maroon)' }}>Account Created!</p>
         <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6, marginTop: 6 }}>
-          Welcome to Nakconel Bank.<br/>Your account number is <strong style={{ color: 'var(--maroon)' }}>{normalizePhone(sPhone)}</strong>.
+          Welcome to Nakconel Bank.<br/>Your account has been created successfully.
         </p>
         {sSelfie && <img src={sSelfie} alt="Profile" style={{ width: 68, height: 68, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--gold)', margin: '14px auto 0', display: 'block' }} />}
         <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>Taking you to your dashboard…</p>
+        {/* Auto-redirect if session available */}
+        {sSession && (() => { setTimeout(() => onSuccess(sSession!), 1200); return null; })()}
       </div>
     </>, false);
-  }
-
-  /* ════════ LOGIN ════════ */
+  }  /* ════════ LOGIN ════════ */
   /* Step: phone/email */
   if (tab === 'login' && lStep === 'phone') return card('Sign in', <>
     <p style={{ fontWeight: 700, fontSize: 17, color: 'var(--maroon)' }}>Welcome back</p>

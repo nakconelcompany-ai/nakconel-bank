@@ -6,6 +6,7 @@ export type Session = {
   fullName: string;
   phone?: string;
   accountId?: string;
+  accountNumber?: string;
   kycStatus?: string;
 };
 

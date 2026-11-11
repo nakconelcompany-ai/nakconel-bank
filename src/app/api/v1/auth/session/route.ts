@@ -23,11 +23,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        accountId: user.accounts[0]?.id,
-        kycStatus: user.kycStatus,
+        id:            user.id,
+        email:         user.email,
+        fullName:      user.fullName,
+        accountId:     user.accounts[0]?.id,
+        accountNumber: user.accounts[0]?.accountNumber ?? undefined,
+        kycStatus:     user.kycStatus,
       },
     });
   } catch (error: unknown) {

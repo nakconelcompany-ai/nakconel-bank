@@ -36,12 +36,13 @@ enum KycStatus {
 }
 
 model Account {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  currency  String   @default("NGN")
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  currency      String   @default("NGN")
+  status        String   @default("ACTIVE")
+  accountNumber String?  @unique  // 10-digit NUBAN-style number
+  createdAt     DateTime @default(now())
 
   // Ledger references by account id string — balances computed from journal
   transfersFrom Transfer[] @relation("FromAccount")
