@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { registerUser } from '@/domains/identity/service';
+import { registerUser, consumeSignupVerificationToken } from '@/domains/identity/service';
 import { hasSameOriginRequest, setSessionCookie } from '@/lib/session';
 
 const schema = z.object({
@@ -9,6 +9,7 @@ const schema = z.object({
   email:       z.string().email('Enter a valid email address'),
   password:    z.string().min(6, 'Password must be at least 6 characters'),
   pin:         z.string().regex(/^\d{4}$/, 'PIN must be 4 digits'),
+  signupVerificationToken: z.string().min(32),
   dateOfBirth: z.string().optional(),
   address:     z.string().optional(),
 });
@@ -31,6 +32,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const verified = await consumeSignupVerificationToken(parsed.data.email, parsed.data.signupVerificationToken);
+    if (!verified) {
+      return NextResponse.json({ success: false, error: 'Please verify your email address before creating your account.' }, { status: 403 });
+    }
     const user = await registerUser({
       phone:       parsed.data.phone,
       fullName:    parsed.data.fullName,
