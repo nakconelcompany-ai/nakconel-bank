@@ -31,13 +31,24 @@ export default async function AdminPage() {
 
   if (me.role !== 'owner' && me.role !== 'admin') {
     return (
-      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f5efe4', fontFamily:'system-ui,sans-serif' }}>
-        <div style={{ textAlign:'center' }}>
-          <h1 style={{ color:'#651719', marginBottom:8 }}>Access Denied</h1>
-          <p style={{ color:'#82736b' }}>Admin access requires the owner or admin role.</p>
-          <a href="/" style={{ display:'inline-block', marginTop:16, color:'#651719' }}>← Go back</a>
-        </div>
-      </div>
+      <html lang="en">
+        <head><meta charSet="UTF-8"/><title>Admin — Access Denied</title></head>
+        <body style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f5efe4', fontFamily:'system-ui,sans-serif', margin:0 } as React.CSSProperties}>
+          <div style={{ textAlign:'center', padding:32 }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>🔒</div>
+            <h1 style={{ color:'#651719', marginBottom:8, fontSize:24 }}>Access Denied</h1>
+            <p style={{ color:'#82736b', marginBottom:4 }}>Your account role is: <strong>{me.role ?? 'customer'}</strong></p>
+            <p style={{ color:'#82736b', marginBottom:24, fontSize:13 }}>Admin access requires the <strong>owner</strong> or <strong>admin</strong> role.</p>
+            <p style={{ color:'#82736b', fontSize:12, background:'#f0e8df', padding:'12px 16px', borderRadius:10, marginBottom:20 }}>
+              To grant access, run this SQL in Neon console:<br/>
+              <code style={{ fontFamily:'monospace', color:'#651719' }}>
+                UPDATE &quot;User&quot; SET role = &apos;owner&apos; WHERE email = &apos;{me.email}&apos;;
+              </code>
+            </p>
+            <a href="/" style={{ display:'inline-block', color:'#651719', fontWeight:700, textDecoration:'none', border:'1px solid #651719', padding:'10px 20px', borderRadius:10 }}>← Go back to app</a>
+          </div>
+        </body>
+      </html>
     );
   }
 
