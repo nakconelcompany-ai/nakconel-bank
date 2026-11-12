@@ -1028,18 +1028,9 @@ export default function BankApp() {
             { label: 'KYC verification',       action: () => setView('kyc') },
             { label: 'Business banking',       action: () => setView('business') },
             { label: 'International transfers',action: () => setView('international') },
-            ...(session.kycStatus === 'VERIFIED' || true ? [{ label: 'Admin dashboard', action: async () => {
-              // Try to promote first, then open admin
-              try {
-                const r = await fetch('/api/v1/health/promote', { method: 'POST' });
-                const j = await r.json();
-                if (j.success) toast$(j.data.message);
-              } catch { /**/ }
-              window.open('/admin', '_blank');
-            }}] : []),
           ].map(({ label, action }) => (
             <button key={label} type="button" onClick={action}
-              style={{ width: '100%', padding: '14px 18px', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, color: label === 'Admin dashboard' ? 'var(--maroon)' : 'var(--ink)', fontWeight: label === 'Admin dashboard' ? 700 : 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              style={{ width: '100%', padding: '14px 18px', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, color: 'var(--ink)', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               {label} <IconArrowRight size={16} />
             </button>
           ))}
