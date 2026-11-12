@@ -12,12 +12,13 @@ export type Bank = {
   country: string;
   logoUrl: string;
   flag?: string;
+  category?: 'commercial' | 'digital' | 'payment-service' | 'mobile-money' | 'credit-union';
 };
 
-type BankRow = [code: string, name: string, short: string, color: string, domain: string, country: string];
+type BankRow = [code: string, name: string, short: string, color: string, domain: string, country: string, category?: Bank['category']];
 
-const makeBanks = (rows: BankRow[]): Bank[] => rows.map(([code, name, short, color, domain, country]) => ({
-  code, name, short, color, country,
+const makeBanks = (rows: BankRow[]): Bank[] => rows.map(([code, name, short, color, domain, country, category = 'commercial']) => ({
+  code, name, short, color, country, category,
   // Bank/brand favicon served by Google's favicon endpoint; initials remain
   // available in the UI if a bank has no published favicon.
   logoUrl: `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
@@ -40,7 +41,6 @@ export const NG_BANKS: Bank[] = makeBanks([
   ['214','First City Monument Bank (FCMB)','FCMB','#8B1A4A','fcmb.com','NG'],
   ['035','Wema Bank','WMA','#8B008B','wemabank.com','NG'],
   ['068','Standard Chartered Bank Nigeria','SCB','#0072AA','sc.com/ng','NG'],
-  ['030','Heritage Bank','HB','#7A1F6B','hbng.com','NG'],
   ['023','Citibank Nigeria','CITI','#003B70','citigroup.com','NG'],
   ['301','Jaiz Bank','JAIZ','#00843D','jaizbankplc.com','NG'],
   ['100','SunTrust Bank','SUN','#F58220','suntrustng.com','NG'],
@@ -50,7 +50,20 @@ export const NG_BANKS: Bank[] = makeBanks([
   ['997','Kuda','KUD','#40196D','kuda.com','NG'],
   ['996','Moniepoint','MP','#0066FF','moniepoint.com','NG'],
   ['995','Paga','PAGA','#F15A24','paga.com','NG'],
-  ['994','VFD Microfinance Bank','VFD','#00AEEF','vbank.ng','NG'],
+  ['994','VFD Microfinance Bank','VFD','#00AEEF','vbank.ng','NG','digital'],
+  ['120001','9 Payment Service Bank','9PSB','#00AEEF','9psb.com.ng','NG','payment-service'],
+  ['120002','Hope Payment Service Bank','HOPE','#00A651','hopepsbank.com','NG','payment-service'],
+  ['120003','MOMO Payment Service Bank','MOMO','#FFC72C','momoagent.com.ng','NG','payment-service'],
+  ['946','MoneyMaster Payment Service Bank','MM','#003B70','moneymaster.com.ng','NG','payment-service'],
+  ['120004','SmartCash Payment Service Bank','SMART','#E31C23','smartcashpsb.ng','NG','payment-service'],
+  ['kuda-mfb','Kuda Microfinance Bank','KUD','#40196D','kuda.com','NG','digital'],
+  ['moniepoint-mfb','Moniepoint Microfinance Bank','MP','#0066FF','moniepoint.com','NG','digital'],
+  ['opay-mfb','OPay Microfinance Bank','OP','#00C853','opayweb.com','NG','digital'],
+  ['palmpay-mfb','PalmPay','PP','#7B2CBF','palmpay.com','NG','digital'],
+  ['fairmoney-mfb','FairMoney Microfinance Bank','FM','#00AEEF','fairmoney.io','NG','digital'],
+  ['rubies-mfb','Rubies Microfinance Bank','RUB','#7B2CBF','rubiesbank.com','NG','digital'],
+  ['sparkle-mfb','Sparkle Microfinance Bank','SPK','#6B2D8B','sparkle.ng','NG','digital'],
+  ['paga-wallet','Paga','PAGA','#F15A24','paga.com','NG','mobile-money'],
 ]);
 
 /** Banks grouped by the country that issues the selected currency. */
@@ -64,7 +77,19 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     ['pnc','PNC Bank','PNC','#E57200','pnc.com','US'],
     ['capitalone','Capital One','CO','#004977','capitalone.com','US'],
     ['tdus','TD Bank','TD','#54B848','td.com','US'],
-    ['ally','Ally Bank','Ally','#6E1E7D','ally.com','US'],
+    ['ally','Ally Bank','Ally','#6E1E7D','ally.com','US','digital'],
+    ['citizens','Citizens Bank','CIT','#007A53','citizensbank.com','US'],
+    ['truist','Truist Bank','TRU','#4B2683','truist.com','US'],
+    ['regions','Regions Bank','REG','#007A53','regions.com','US'],
+    ['fifththird','Fifth Third Bank','53','#006A4E','53.com','US'],
+    ['huntington','Huntington National Bank','HNB','#00843D','huntington.com','US'],
+    ['keybank','KeyBank','KEY','#E31C23','key.com','US'],
+    ['mtbank','M&T Bank','MT','#006A4E','mtb.com','US'],
+    ['bmo_us','BMO Bank','BMO','#0079C1','bmo.com','US'],
+    ['synchrony','Synchrony Bank','SYN','#003B70','synchrony.com','US','digital'],
+    ['discover','Discover Bank','DISC','#FF6600','discover.com','US'],
+    ['usaa','USAA','USAA','#003B70','usaa.com','US'],
+    ['navyfederal','Navy Federal Credit Union','NFCU','#0066A4','navyfederal.org','US','credit-union'],
   ]),
   GB: makeBanks([
     ['barclays','Barclays','BARC','#00AEEF','barclays.co.uk','GB'],
@@ -142,6 +167,62 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     ['bbk','Bank of Bahrain and Kuwait','BBK','#00529B','bbkonline.com','BH'],
     ['bisb','Bahrain Islamic Bank','BISB','#00843D','bisb.com','BH'],
   ]),
+  BJ: makeBanks([
+    ['boa_bj','Bank of Africa Benin','BOA','#E31C23','boabenin.com','BJ'],
+    ['ecobank_bj','Ecobank Benin','ECO','#0066B3','ecobank.com','BJ'],
+    ['orabank_bj','Orabank Benin','ORA','#006A4E','orabank.net','BJ'],
+    ['nsia_bj','NSIA Banque Bénin','NSIA','#00843D','nsiabanque.com','BJ'],
+  ]),
+  BF: makeBanks([
+    ['ecobank_bf','Ecobank Burkina Faso','ECO','#0066B3','ecobank.com','BF'],
+    ['boa_bf','Bank of Africa Burkina Faso','BOA','#E31C23','boaburkina.com','BF'],
+    ['biciab','BICIAB','BICI','#00529B','biciab.com','BF'],
+    ['coris','Coris Bank International','CORIS','#E31C23','coris.bank','BF'],
+    ['uba_bf','UBA Burkina Faso','UBA','#D32F2F','ubagroup.com','BF'],
+  ]),
+  CI: makeBanks([
+    ['sgci','Société Générale Côte d’Ivoire','SG','#E60028','societegenerale.ci','CI'],
+    ['bici_ci','BICICI','BICI','#00529B','bici-ci.com','CI'],
+    ['sib_ci','Société Ivoirienne de Banque','SIB','#003B70','sib.ci','CI'],
+    ['nsia_ci','NSIA Banque Côte d’Ivoire','NSIA','#00843D','nsiabanque.com','CI'],
+    ['boa_ci','Bank of Africa Côte d’Ivoire','BOA','#E31C23','boacotedivoire.com','CI'],
+    ['ecobank_ci','Ecobank Côte d’Ivoire','ECO','#0066B3','ecobank.com','CI'],
+    ['coris_ci','Coris Bank International CI','CORIS','#E31C23','coris.bank','CI'],
+  ]),
+  GW: makeBanks([
+    ['ecobank_gw','Ecobank Guinea-Bissau','ECO','#0066B3','ecobank.com','GW'],
+    ['bao','Banco da Africa Ocidental','BAO','#E31C23','bao.gw','GW'],
+    ['bdu','Banco da União','BDU','#006A4E','bdu.gw','GW'],
+  ]),
+  ML: makeBanks([
+    ['bms','Banque Malienne de Solidarité','BMS','#00843D','bms-sa.ml','ML'],
+    ['bnda','Banque Nationale de Développement Agricole','BNDA','#006A4E','bnda-mali.com','ML'],
+    ['boa_ml','Bank of Africa Mali','BOA','#E31C23','boamali.com','ML'],
+    ['ecobank_ml','Ecobank Mali','ECO','#0066B3','ecobank.com','ML'],
+    ['bici_ml','BICIM','BICIM','#00529B','bicim.com','ML'],
+  ]),
+  NE: makeBanks([
+    ['bnic','Banque Nigérienne pour l’Industrie et le Commerce','BNIC','#00529B','bnic.ne','NE'],
+    ['boa_ne','Bank of Africa Niger','BOA','#E31C23','boaniger.com','NE'],
+    ['ecobank_ne','Ecobank Niger','ECO','#0066B3','ecobank.com','NE'],
+    ['sonibank','SONIBANK','SONI','#006A4E','sonibank.com','NE'],
+  ]),
+  SN: makeBanks([
+    ['cbao','CBAO Groupe Attijariwafa bank','CBAO','#E31C23','cbao.sn','SN'],
+    ['bhs','Banque de l’Habitat du Sénégal','BHS','#006A4E','bhs.sn','SN'],
+    ['bicis','BICIS','BICIS','#00529B','bicis.sn','SN'],
+    ['boa_sn','Bank of Africa Sénégal','BOA','#E31C23','boasenegal.com','SN'],
+    ['ecobank_sn','Ecobank Sénégal','ECO','#0066B3','ecobank.com','SN'],
+    ['orabank_sn','Orabank Sénégal','ORA','#006A4E','orabank.net','SN'],
+    ['uba_sn','UBA Sénégal','UBA','#D32F2F','ubagroup.com','SN'],
+  ]),
+  TG: makeBanks([
+    ['btci','Banque Togolaise pour le Commerce et l’Industrie','BTCI','#00529B','btci.tg','TG'],
+    ['ecobank_tg','Ecobank Togo','ECO','#0066B3','ecobank.com','TG'],
+    ['boa_tg','Bank of Africa Togo','BOA','#E31C23','boatogo.com','TG'],
+    ['utb','Union Togolaise de Banque','UTB','#006A4E','utb.tg','TG'],
+    ['orabank_tg','Orabank Togo','ORA','#006A4E','orabank.net','TG'],
+  ]),
   GH: makeBanks([
     ['gcb','GCB Bank','GCB','#006A4E','gcbbank.com.gh','GH'],
     ['ecogh','Ecobank Ghana','ECO','#0066B3','ecobank.com','GH'],
@@ -150,7 +231,27 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     ['stanbicgh','Stanbic Bank Ghana','STB','#0033A0','stanbic.com.gh','GH'],
     ['fidelitygh','Fidelity Bank Ghana','FID','#7B2D8E','myfidelitybank.net','GH'],
     ['cal','CalBank','CAL','#E31C23','calbank.net','GH'],
-    ['mtnmomo','MTN MoMo','MOMO','#FFC72C','mtn.com.gh','GH'],
+    ['adbgh','Agricultural Development Bank','ADB','#00843D','agricbank.com','GH'],
+    ['boagh','Bank of Africa Ghana','BOA','#E31C23','boaghana.com','GH'],
+    ['cbg','Consolidated Bank Ghana','CBG','#00529B','cbg.com.gh','GH'],
+    ['fabgh','First Atlantic Bank','FAB','#003B70','firstatlanticbank.com.gh','GH'],
+    ['fbngh','FBNBank Ghana','FBN','#003B70','fbnbankghana.com','GH'],
+    ['fnbgh','First National Bank Ghana','FNB','#00A4E4','firstnationalbank.com.gh','GH'],
+    ['gtbgh','Guaranty Trust Bank Ghana','GTB','#E35205','gtbghana.com','GH'],
+    ['nibgh','National Investment Bank','NIB','#0066B3','nib-ghana.com','GH'],
+    ['omnibsic','OmniBSIC Bank','OMNI','#006A4E','omnibsic.com.gh','GH'],
+    ['prudentialgh','Prudential Bank','PRU','#00529B','prudentialbank.com.gh','GH'],
+    ['republicgh','Republic Bank Ghana','REP','#E31C23','republicghana.com','GH'],
+    ['socgen_gh','Société Générale Ghana','SG','#E60028','societegenerale.com.gh','GH'],
+    ['scb_gh','Standard Chartered Ghana','SCB','#0072AA','sc.com/gh','GH'],
+    ['ubagh','UBA Ghana','UBA','#D32F2F','ubagroup.com','GH'],
+    ['umbgh','Universal Merchant Bank','UMB','#E31C23','myumbbank.com','GH'],
+    ['zenithgh','Zenith Bank Ghana','ZEN','#ED1C24','zenithbank.com.gh','GH'],
+    ['mtnmomo','MTN MoMo','MOMO','#FFC72C','mtn.com.gh','GH','mobile-money'],
+    ['airteltigo','AirtelTigo Money','AT','#E31C23','at.com.gh','GH','mobile-money'],
+    ['telecelcash','Telecel Cash','TC','#E60000','telecel.com.gh','GH','mobile-money'],
+    ['g_money','G-Money','GM','#006A4E','gcb.com.gh','GH','mobile-money'],
+    ['palmpaygh','PalmPay Ghana','PP','#7B2CBF','palmpay.co','GH','digital'],
   ]),
   KE: makeBanks([
     ['kcb','KCB Bank Kenya','KCB','#00529B','kcbgroup.com','KE'],
@@ -206,6 +307,14 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     ['scotia','Scotiabank','SCOT','#EC111A','scotiabank.com','CA'],
     ['cibc','CIBC','CIBC','#C41F3E','cibc.com','CA'],
     ['nationalca','National Bank of Canada','NBC','#E31B54','bnc.ca','CA'],
+    ['laurentian','Laurentian Bank','LB','#0072BC','laurentianbank.ca','CA'],
+    ['desjardins','Desjardins','DESJ','#00843D','desjardins.com','CA'],
+    ['atb','ATB Financial','ATB','#0072BC','atb.com','CA'],
+    ['eqbank','EQ Bank','EQ','#00AEEF','eqbank.ca','CA','digital'],
+    ['tangerine','Tangerine Bank','TAN','#F58220','tangerine.ca','CA','digital'],
+    ['simplii','Simplii Financial','SIM','#C8102E','simplii.com','CA','digital'],
+    ['coastcapital','Coast Capital Savings','CCS','#006A4E','coastcapitalsavings.com','CA','credit-union'],
+    ['vancity','Vancity','VAN','#00529B','vancity.com','CA','credit-union'],
   ]),
   BR: makeBanks([
     ['itau','Itaú Unibanco','ITAU','#EC7000','itau.com.br','BR'],
@@ -328,6 +437,9 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     ['asb','ASB Bank','ASB','#F5C400','asb.co.nz','NZ'],
     ['westpacnz','Westpac New Zealand','WBC','#DA1710','westpac.co.nz','NZ'],
     ['kiwi','Kiwibank','KIWI','#00843D','kiwibank.co.nz','NZ'],
+    ['tsb_nz','TSB Bank New Zealand','TSB','#003B70','tsb.co.nz','NZ'],
+    ['heartland','Heartland Bank','HB','#00AEEF','heartland.co.nz','NZ'],
+    ['rabobank_nz','Rabobank New Zealand','RABO','#FF6600','rabobank.co.nz','NZ'],
   ]),
 };
 
@@ -335,7 +447,8 @@ export const CURRENCY_COUNTRIES: Record<string, string[]> = {
   NGN:['NG'], USD:['US'], GBP:['GB'], EUR:['DE','FR','NL','IT','ES','IE'],
   AED:['AE'], SAR:['SA'], QAR:['QA'], KWD:['KW'], BHD:['BH'],
   GHS:['GH'], KES:['KE'], ZAR:['ZA'], EGP:['EG'], ETB:['ET'],
-  UGX:['UG'], TZS:['TZ'], RWF:['RW'], XOF:['GH'],
+  UGX:['UG'], TZS:['TZ'], RWF:['RW'],
+  XOF:['BJ','BF','CI','GW','ML','NE','SN','TG'],
   CAD:['CA'], BRL:['BR'], MXN:['MX'], CHF:['CH'], SEK:['SE'],
   NOK:['NO'], PLN:['PL'], CNY:['CN'], JPY:['JP'], INR:['IN'],
   KRW:['KR'], SGD:['SG'], HKD:['HK'], MYR:['MY'], IDR:['ID'],
