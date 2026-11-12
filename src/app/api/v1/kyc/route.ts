@@ -69,9 +69,8 @@ export async function POST(req: NextRequest) {
   // Encrypt BVN at rest
   const bvnEnc = encryptField(bvn);
 
-  // Mock verification — in production connect to NIBSS/Identity Pass
-  const mockVerified = bvn !== '00000000000'; // reject all-zeros as obviously fake
-
+  // Do not approve identity from format checks alone. A licensed identity
+  // verification provider and review workflow must confirm the submitted details.
   const submission = await prisma.kycSubmission.create({
     data: {
       userId,
@@ -81,17 +80,14 @@ export async function POST(req: NextRequest) {
       address,
       bvnEnc,
       idType,
-      status: mockVerified ? 'VERIFIED' : 'REJECTED',
-      providerRef: `mock_kyc_${Date.now()}`,
+      status: 'PENDING',
     },
   });
 
-  if (mockVerified) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { kycStatus: 'VERIFIED', address },
-    });
-  }
+  await prisma.user.update({
+    where: { id: userId },
+    data: { kycStatus: 'PENDING', address },
+  });
 
   await writeAudit({
     userId,
@@ -106,9 +102,7 @@ export async function POST(req: NextRequest) {
     data: {
       id:     submission.id,
       status: submission.status,
-      message: mockVerified
-        ? 'Identity verified successfully. Your account limits have been upgraded.'
-        : 'Verification could not be completed. Please check your details and try again.',
+      message: 'Your identity details have been submitted and are pending verification. Your account has not been marked as verified.',
     },
   }, { status: 201 });
 }
