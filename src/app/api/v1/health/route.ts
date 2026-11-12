@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest) {
       status: 'ok',
       db: 'connected',
       time: result[0]?.now,
-      migrations: 'accountNumber column ensured',
+      migrations: 'accountNumber and role columns ensured',
     });
   } catch (e: unknown) {
     console.error('Health/migration error:', e);
