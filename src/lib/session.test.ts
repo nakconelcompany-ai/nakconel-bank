@@ -5,7 +5,7 @@ import { createSessionToken, getAuthenticatedUserId, hasSameOriginRequest, verif
 const userId = 'c654c221-76fb-4b7f-b0cb-a51bd128c276';
 
 describe('signed sessions', () => {
-  it('allows only requests with the exact same origin', () => {
+  it('allows only requests with the exact same origin and rejects missing Origin headers', () => {
     expect(
       hasSameOriginRequest(new NextRequest('https://bank.example/api', {
         method: 'POST',
