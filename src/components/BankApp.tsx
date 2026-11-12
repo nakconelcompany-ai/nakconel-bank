@@ -599,27 +599,9 @@ export default function BankApp() {
     const total  = amt + (amt > 0 ? FEE : 0);
     const isIntl = viewCurrency.code !== 'NGN';
 
-    // Currency switching is display-only until foreign-currency accounts and
-    // licensed payout rails exist. Never send a foreign amount to the NGN API.
-    if (isIntl) return shell(
-      <div>
-        <h2 style={{ marginBottom: 8 }}>International transfers</h2>
-        <div className="glass" style={{ padding: 16 }}>
-          <p style={{ fontWeight: 700, marginBottom: 8 }}>Not available yet</p>
-          <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
-            Your selected currency is currently for balance display and indicative conversion only. International accounts and provider-backed payouts are not connected, so no international transfer can be submitted.
-          </p>
-          <button type="button" className="btn-gold" style={{ marginTop: 14 }}
-            onClick={() => {
-              setViewCurrency({ code: 'NGN', symbol: '₦', rate: 1, flag: '🇳🇬' });
-              setSendBank(''); setSendBankName(''); setSendAcct(''); setSendName(''); setSendAmount('');
-            }}>
-            Return to NGN transfers
-          </button>
-        </div>
-      </div>,
-      { nav: true }
-    );
+    // Keep the existing bank-selection and payment form visible for layout review.
+    // International submissions remain blocked until a licensed payout provider,
+    // foreign-currency funding, and verified destination-bank routes are connected.
 
     return shell(
       <div>
@@ -698,11 +680,18 @@ export default function BankApp() {
         <input value={sendNote} onChange={e => setSendNote(e.target.value)}
           placeholder="What is this for?" className="input" style={{ marginBottom: 16 }} />
 
-        {amt > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Fee ₦{FEE} · Total debit {fmt(total)}</p>}
+        {amt > 0 && (isIntl
+          ? <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>International fees and final debit will be shown when a supported payout provider is connected.</p>
+          : <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Fee ₦{FEE} · Total debit {fmt(total)}</p>
+        )}
 
         <button type="button" className="btn-gold"
           disabled={!sendBank || !sendAcct || amt <= 0 || !session.accountId}
           onClick={() => {
+            if (isIntl) {
+              toast$('International transfer preview only — no payment has been submitted.');
+              return;
+            }
             setPending(() => async () => {
               if (!session.accountId) return;
               const tx = await apiTransfer({
@@ -725,7 +714,7 @@ export default function BankApp() {
             setPin('');
             setView('pin');
           }}>
-          {sendName ? `Send ${fmt(amt)} to ${sendName}` : 'Continue'}
+          {isIntl ? 'Preview international transfer' : sendName ? `Send ${fmt(amt)} to ${sendName}` : 'Continue'}
         </button>
       </div>,
       { nav: true }
