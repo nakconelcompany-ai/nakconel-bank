@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword, hashPin, verifyPassword, verifyPin } from '@/lib/crypto';
 import { writeAudit } from '@/lib/audit';
 import { postJournal } from '@/domains/ledger/service';
-import { createHash } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -52,9 +52,35 @@ export async function verifyEmailOtp(email: string, code: string, purpose: 'sign
   return true;
 }
 
+/** Issue a short-lived, single-use proof that signup email OTP was verified. */
+export async function issueSignupVerificationToken(email: string): Promise<string> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const token = randomBytes(32).toString('base64url');
+  const key = `signup-verified:${normalizedEmail}`;
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  await prisma.idempotencyRecord.upsert({
+    where: { key },
+    create: { key, response: { token, email: normalizedEmail }, expiresAt },
+    update: { response: { token, email: normalizedEmail }, expiresAt },
+  });
+  return token;
+}
+
+export async function consumeSignupVerificationToken(email: string, token: string): Promise<boolean> {
+  const key = `signup-verified:${email.toLowerCase().trim()}`;
+  const record = await prisma.idempotencyRecord.findUnique({ where: { key } });
+  if (!record || record.expiresAt < new Date()) return false;
+  const stored = record.response as { token: string; email: string };
+  const a = Buffer.from(stored.token);
+  const b = Buffer.from(token);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  const deleted = await prisma.idempotencyRecord.deleteMany({ where: { key, expiresAt: { gt: new Date() } } });
+  return deleted.count === 1;
+}
+
 /** After OTP is verified for password-reset, issue a short-lived reset token */
 export async function issuePasswordResetToken(email: string): Promise<string> {
-  const token = createHash('sha256').update(`reset:${email}:${Date.now()}:${Math.random()}`).digest('hex');
+  const token = randomBytes(32).toString('base64url');
   const key = `reset-token:${email.toLowerCase()}`;
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
   await prisma.idempotencyRecord.upsert({
@@ -71,7 +97,9 @@ export async function verifyPasswordResetToken(email: string, token: string): Pr
   const record = await prisma.idempotencyRecord.findUnique({ where: { key } });
   if (!record || record.expiresAt < new Date()) return false;
   const stored = record.response as { token: string; email: string };
-  if (stored.token !== token) return false;
+  const storedBuffer = Buffer.from(stored.token);
+  const suppliedBuffer = Buffer.from(token);
+  if (storedBuffer.length !== suppliedBuffer.length || !timingSafeEqual(storedBuffer, suppliedBuffer)) return false;
   await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
   return true;
 }
