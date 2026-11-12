@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getAuthenticatedUserId } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { topUpAccount } from '@/domains/identity/service';
+import { sendMoneyReceivedEmail } from '@/lib/brevo';
 
 const initSchema = z.object({
   accountId: z.string().uuid(),
@@ -68,11 +69,15 @@ export async function POST(req: NextRequest) {
   // Demo mode — credit immediately without a real payment provider
   try {
     await topUpAccount({ userId, accountId: account.id, amountKobo, reference });
+    // Send money received alert (non-blocking)
+    const formatted = `₦${parsed.data.amountNgn.toLocaleString('en-NG')}`;
+    const time = new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' });
+    sendMoneyReceivedEmail({ to: account.user.email, toName: account.user.fullName, amount: formatted, reference, time }).catch(() => {});
     return NextResponse.json({
       success: true,
       data: {
         mode: 'demo',
-        message: `Demo top-up: ₦${parsed.data.amountNgn.toLocaleString('en-NG')} credited to your wallet.`,
+        message: `${formatted} credited to your wallet.`,
         amountKobo,
       },
     });

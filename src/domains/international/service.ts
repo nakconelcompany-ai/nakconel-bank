@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getRate } from '@/lib/fx';
 
 export type CorridorId = 'AFRICA' | 'UK' | 'US' | 'GCC' | 'EUROPE';
 
@@ -106,7 +107,7 @@ export function getCorridor(id: string): Corridor | undefined {
   return CORRIDORS.find((c) => c.id === id);
 }
 
-export function quoteInternational(input: {
+export async function quoteInternational(input: {
   corridorId: string;
   countryCode: string;
   amountNgn: number;
@@ -117,25 +118,28 @@ export function quoteInternational(input: {
   if (!country) throw new Error('Country not supported on this corridor');
   if (input.amountNgn < 1000) throw new Error('Minimum send is ₦1,000');
 
-  const fxRate = FX_BY_CURRENCY[country.currency] ?? corridor.fxBase;
+  // Use live rate; fall back to hardcoded corridor base rate
+  const liveFxRate = await getRate(country.currency).catch(() => null);
+  const fxRate = liveFxRate && liveFxRate > 0 ? liveFxRate : (FX_BY_CURRENCY[country.currency] ?? corridor.fxBase);
+
   const feeNgn = Math.max(corridor.feeMinNgn, Math.round(input.amountNgn * (corridor.feePct / 100)));
   const sendNgn = input.amountNgn;
   const totalDebit = sendNgn + feeNgn;
   const amountForeign = Math.round((sendNgn / fxRate) * 100) / 100;
 
   return {
-    corridorId: corridor.id,
+    corridorId:    corridor.id,
     corridorLabel: corridor.label,
-    countryCode: country.code,
-    countryName: country.name,
-    currency: country.currency,
-    currencyName: country.currencyName,
-    amountNgn: sendNgn,
+    countryCode:   country.code,
+    countryName:   country.name,
+    currency:      country.currency,
+    currencyName:  country.currencyName,
+    amountNgn:     sendNgn,
     feeNgn,
     totalDebitNgn: totalDebit,
     fxRate,
     amountForeign,
-    settlementDays: corridor.settlementDays,
+    settlementDays:  corridor.settlementDays,
     settlementNote: `CBN-aligned international transfer · ${corridor.label} corridor · settles in ${corridor.settlementDays}`,
   };
 }

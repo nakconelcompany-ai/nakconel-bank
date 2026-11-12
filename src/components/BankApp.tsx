@@ -764,7 +764,16 @@ export default function BankApp() {
   /* ════════ HISTORY ════════ */
   if (view === 'history' && session) return shell(
     <div>
-      <h2 style={{ marginBottom: 4 }}>Transaction history</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <h2>Transaction history</h2>
+        <button
+          type="button"
+          onClick={() => window.open('/api/v1/statements', '_blank')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: 'var(--maroon)', color: '#fff9eb', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Statement
+        </button>
+      </div>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>All your recent transfers</p>
       {txLoading && txs.length === 0
         ? <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 32 }}>Loading…</p>
