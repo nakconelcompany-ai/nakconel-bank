@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { data: transfer, replayed } = await withIdempotency(idempotencyKey, () =>
+    const scopedIdempotencyKey = `${userId}:domestic-transfer:${idempotencyKey}`;
+    const { data: transfer, replayed } = await withIdempotency(scopedIdempotencyKey, () =>
       createTransfer({
         userId,
         fromAccountId: parsed.data.fromAccountId,
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
         beneficiaryName: parsed.data.beneficiaryName,
         beneficiaryAccount: parsed.data.beneficiaryAccount,
         note: parsed.data.note,
-        idempotencyKey,
+        idempotencyKey: scopedIdempotencyKey,
         pinVerified: true,
       })
     );
