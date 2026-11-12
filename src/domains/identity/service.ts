@@ -45,12 +45,23 @@ export async function verifyEmailOtp(email: string, code: string, purpose: 'sign
   const key = `email-otp:${purpose}:${email.toLowerCase()}`;
   const record = await prisma.idempotencyRecord.findUnique({ where: { key } });
   if (!record || record.expiresAt < new Date()) return false;
-  const stored = record.response as { codeHash: string; purpose: string };
+  const stored = record.response as { codeHash: string; purpose: string; attempts?: number };
+  const attempts = stored.attempts ?? 0;
+  if (attempts >= 5) {
+    await prisma.idempotencyRecord.deleteMany({ where: { key } });
+    return false;
+  }
   const expected = Buffer.from(stored.codeHash, 'hex');
   const supplied = Buffer.from(hashCode(code), 'hex');
-  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) return false;
-  // consume — delete so it can't be reused
-  await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
+    await prisma.idempotencyRecord.update({
+      where: { key },
+      data: { response: { ...stored, attempts: attempts + 1 } },
+    }).catch(() => {});
+    return false;
+  }
+  // Consume — delete so it can't be reused.
+  await prisma.idempotencyRecord.deleteMany({ where: { key } });
   return true;
 }
 
