@@ -5,6 +5,7 @@ export type Session = {
   email: string;
   fullName: string;
   phone?: string;
+  role?: string;
   accountId?: string;
   accountNumber?: string;
   kycStatus?: string;

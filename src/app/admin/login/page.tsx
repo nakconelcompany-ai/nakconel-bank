@@ -13,18 +13,13 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setErr(''); setLoading(true);
     try {
-      const res = await fetch('/api/v1/auth/login', {
+      const res = await fetch('/api/v1/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) { setErr(json.error ?? 'Login failed'); return; }
-      // Verify this user has owner role
-      const user = json.data as { role?: string };
-      if (user.role !== 'owner' && user.role !== 'admin') {
-        setErr('This account does not have admin access.'); return;
-      }
       router.push('/admin');
     } catch {
       setErr('Could not connect. Please try again.');

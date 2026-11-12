@@ -159,6 +159,7 @@ export async function loginUser(emailOrPhone: string, password: string) {
     email:         user.email,
     fullName:      user.fullName,
     phone:         user.phone ?? undefined,
+    role:          user.role ?? 'customer',
     kycStatus:     user.kycStatus,
     accountId:     user.accounts[0]?.id,
     accountNumber: user.accounts[0]?.accountNumber ?? undefined,
