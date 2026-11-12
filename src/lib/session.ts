@@ -75,8 +75,8 @@ export function clearSessionCookie(response: NextResponse) {
 
 export function hasSameOriginRequest(request: NextRequest): boolean {
   const origin = request.headers.get('origin');
-  // Allow requests with no origin header (same-site navigation, mobile apps)
-  if (!origin) return true;
+  // Browser state-changing requests must carry an explicit same-origin header.
+  if (!origin) return false;
   // Allow if origin matches the request URL origin
   try {
     return new URL(origin).origin === request.nextUrl.origin;
