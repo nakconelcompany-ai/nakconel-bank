@@ -1,232 +1,369 @@
-/** Nigerian banks + fintech wallets for transfers (demo list). */
-
+/**
+ * Bank directory used by the transfer bank picker.
+ * This is a curated directory, not a guarantee that every institution is
+ * reachable through a live payout rail. Provider-supported recipients must
+ * be validated by the transfer provider before a real transfer is submitted.
+ */
 export type Bank = {
-  code:    string;
-  name:    string;
-  short:   string;
-  color:   string;
-  flag?:   string;   // emoji flag for international banks
-  country: string;   // ISO country code e.g. 'NG', 'US', 'GB'
+  code: string;
+  name: string;
+  short: string;
+  color: string;
+  country: string;
+  logoUrl: string;
 };
 
-/* ── Nigerian banks ── */
-export const NG_BANKS: Bank[] = [
-  { code: '058', name: 'GTBank',         short: 'GT',   color: '#E35205', country: 'NG' },
-  { code: '033', name: 'UBA',            short: 'UBA',  color: '#D32F2F', country: 'NG' },
-  { code: '011', name: 'First Bank',     short: 'FBN',  color: '#003B70', country: 'NG' },
-  { code: '057', name: 'Zenith Bank',    short: 'ZEN',  color: '#ED1C24', country: 'NG' },
-  { code: '032', name: 'Union Bank',     short: 'UBN',  color: '#00A651', country: 'NG' },
-  { code: '044', name: 'Access Bank',    short: 'ACC',  color: '#F7941D', country: 'NG' },
-  { code: '050', name: 'Ecobank',        short: 'ECO',  color: '#0066B3', country: 'NG' },
-  { code: '070', name: 'Fidelity Bank',  short: 'FID',  color: '#7B2D8E', country: 'NG' },
-  { code: '221', name: 'Stanbic IBTC',   short: 'SIB',  color: '#0033A0', country: 'NG' },
-  { code: '232', name: 'Sterling Bank',  short: 'STB',  color: '#E31C23', country: 'NG' },
-  { code: '076', name: 'Polaris Bank',   short: 'POL',  color: '#6B2D8B', country: 'NG' },
-  { code: '082', name: 'Keystone Bank',  short: 'KEY',  color: '#00A651', country: 'NG' },
-  { code: '214', name: 'FCMB',           short: 'FCMB', color: '#8B1A4A', country: 'NG' },
-  { code: '035', name: 'Wema Bank',      short: 'WMA',  color: '#8B008B', country: 'NG' },
-  { code: '999', name: 'OPay',           short: 'OP',   color: '#00C853', country: 'NG' },
-  { code: '998', name: 'PalmPay',        short: 'PP',   color: '#7B2CBF', country: 'NG' },
-  { code: '997', name: 'Kuda',           short: 'KUD',  color: '#40196D', country: 'NG' },
-  { code: '996', name: 'Moniepoint',     short: 'MP',   color: '#0066FF', country: 'NG' },
-];
+type BankRow = [code: string, name: string, short: string, color: string, domain: string, country: string];
 
-/* ── International banks by country code ── */
+const makeBanks = (rows: BankRow[]): Bank[] => rows.map(([code, name, short, color, domain, country]) => ({
+  code, name, short, color, country,
+  // Bank/brand favicon served by Google's favicon endpoint; initials remain
+  // available in the UI if a bank has no published favicon.
+  logoUrl: `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+}));
+
+/** Nigerian naira banks and regulated payment providers. */
+export const NG_BANKS: Bank[] = makeBanks([
+  ['058','Guaranty Trust Bank (GTBank)','GT','#E35205','gtbank.com','NG'],
+  ['033','United Bank for Africa (UBA)','UBA','#D32F2F','ubagroup.com','NG'],
+  ['011','First Bank of Nigeria','FBN','#003B70','firstbanknigeria.com','NG'],
+  ['057','Zenith Bank','ZEN','#ED1C24','zenithbank.com','NG'],
+  ['032','Union Bank of Nigeria','UBN','#00A651','unionbankng.com','NG'],
+  ['044','Access Bank','ACC','#F7941D','accessbankplc.com','NG'],
+  ['050','Ecobank Nigeria','ECO','#0066B3','ecobank.com','NG'],
+  ['070','Fidelity Bank','FID','#7B2D8E','fidelitybank.ng','NG'],
+  ['221','Stanbic IBTC Bank','SIB','#0033A0','stanbicibtc.com','NG'],
+  ['232','Sterling Bank','STB','#E31C23','sterling.ng','NG'],
+  ['076','Polaris Bank','POL','#6B2D8B','polarismfb.com','NG'],
+  ['082','Keystone Bank','KEY','#00A651','keystonebankng.com','NG'],
+  ['214','First City Monument Bank (FCMB)','FCMB','#8B1A4A','fcmb.com','NG'],
+  ['035','Wema Bank','WMA','#8B008B','wemabank.com','NG'],
+  ['068','Standard Chartered Bank Nigeria','SCB','#0072AA','sc.com/ng','NG'],
+  ['030','Heritage Bank','HB','#7A1F6B','hbng.com','NG'],
+  ['023','Citibank Nigeria','CITI','#003B70','citigroup.com','NG'],
+  ['301','Jaiz Bank','JAIZ','#00843D','jaizbankplc.com','NG'],
+  ['100','SunTrust Bank','SUN','#F58220','suntrustng.com','NG'],
+  ['102','Titan Trust Bank','TITAN','#1A3C70','titantrustbank.com','NG'],
+  ['999','OPay','OP','#00C853','opayweb.com','NG'],
+  ['998','PalmPay','PP','#7B2CBF','palmpay.com','NG'],
+  ['997','Kuda','KUD','#40196D','kuda.com','NG'],
+  ['996','Moniepoint','MP','#0066FF','moniepoint.com','NG'],
+  ['995','Paga','PAGA','#F15A24','paga.com','NG'],
+  ['994','VFD Microfinance Bank','VFD','#00AEEF','vbank.ng','NG'],
+]);
+
+/** Banks grouped by the country that issues the selected currency. */
 export const INTL_BANKS: Record<string, Bank[]> = {
-  /* United States */
-  US: [
-    { code: 'chase',   name: 'Chase Bank',           short: 'Chase', color: '#005DAA', flag: '🏦', country: 'US' },
-    { code: 'bofa',    name: 'Bank of America',       short: 'BofA',  color: '#E31837', flag: '🏦', country: 'US' },
-    { code: 'wells',   name: 'Wells Fargo',           short: 'WF',    color: '#D71E28', flag: '🏦', country: 'US' },
-    { code: 'citi',    name: 'Citibank',              short: 'Citi',  color: '#003B6F', flag: '🏦', country: 'US' },
-    { code: 'usbk',    name: 'US Bank',               short: 'USB',   color: '#002855', flag: '🏦', country: 'US' },
-    { code: 'td',      name: 'TD Bank',               short: 'TD',    color: '#54B848', flag: '🏦', country: 'US' },
-    { code: 'cashapp', name: 'Cash App',              short: 'Cash',  color: '#00D64F', flag: '📱', country: 'US' },
-    { code: 'paypal',  name: 'PayPal',                short: 'PP',    color: '#003087', flag: '📱', country: 'US' },
-    { code: 'zelle',   name: 'Zelle',                 short: 'Zel',   color: '#6D1ED4', flag: '📱', country: 'US' },
-  ],
-  /* United Kingdom */
-  GB: [
-    { code: 'barclays', name: 'Barclays Bank',        short: 'Barc', color: '#00AEEF', flag: '🏦', country: 'GB' },
-    { code: 'hsbc',     name: 'HSBC UK',              short: 'HSBC', color: '#DB0011', flag: '🏦', country: 'GB' },
-    { code: 'lloyds',   name: 'Lloyds Bank',          short: 'Lloy', color: '#024731', flag: '🏦', country: 'GB' },
-    { code: 'natwest',  name: 'NatWest',              short: 'NW',   color: '#42145F', flag: '🏦', country: 'GB' },
-    { code: 'santuk',   name: 'Santander UK',         short: 'Sant', color: '#EC0000', flag: '🏦', country: 'GB' },
-    { code: 'monzo',    name: 'Monzo',                short: 'Monzo',color: '#FF3464', flag: '📱', country: 'GB' },
-    { code: 'revolut',  name: 'Revolut',              short: 'Rev',  color: '#191C1F', flag: '📱', country: 'GB' },
-    { code: 'wise',     name: 'Wise (TransferWise)',  short: 'Wise', color: '#00B9FF', flag: '📱', country: 'GB' },
-  ],
-  /* Germany / Europe (EUR) */
-  DE: [
-    { code: 'db',      name: 'Deutsche Bank',         short: 'DB',   color: '#003399', flag: '🏦', country: 'DE' },
-    { code: 'commz',   name: 'Commerzbank',           short: 'CB',   color: '#FFCC00', flag: '🏦', country: 'DE' },
-    { code: 'n26',     name: 'N26',                   short: 'N26',  color: '#48AC98', flag: '📱', country: 'DE' },
-    { code: 'bunq',    name: 'bunq',                  short: 'bunq', color: '#00A6A6', flag: '📱', country: 'DE' },
-    { code: 'bnp',     name: 'BNP Paribas',           short: 'BNP',  color: '#00965E', flag: '🏦', country: 'DE' },
-  ],
-  /* France */
-  FR: [
-    { code: 'bnpfr',   name: 'BNP Paribas',          short: 'BNP',  color: '#00965E', flag: '🏦', country: 'FR' },
-    { code: 'socgen',  name: 'Société Générale',      short: 'SG',   color: '#E60028', flag: '🏦', country: 'FR' },
-    { code: 'lcl',     name: 'LCL',                   short: 'LCL',  color: '#009FE3', flag: '🏦', country: 'FR' },
-  ],
-  /* UAE */
-  AE: [
-    { code: 'enbd',    name: 'Emirates NBD',          short: 'ENBD', color: '#C8102E', flag: '🏦', country: 'AE' },
-    { code: 'fab',     name: 'First Abu Dhabi Bank',  short: 'FAB',  color: '#00855A', flag: '🏦', country: 'AE' },
-    { code: 'adcb',    name: 'ADCB',                  short: 'ADCB', color: '#00529B', flag: '🏦', country: 'AE' },
-    { code: 'mashreq', name: 'Mashreq Bank',          short: 'Mash', color: '#E31E25', flag: '🏦', country: 'AE' },
-    { code: 'wioae',   name: 'WIO Bank',              short: 'WIO',  color: '#6C2BD9', flag: '📱', country: 'AE' },
-  ],
-  /* Saudi Arabia */
-  SA: [
-    { code: 'alrajhi', name: 'Al Rajhi Bank',         short: 'ARB',  color: '#00704A', flag: '🏦', country: 'SA' },
-    { code: 'snb',     name: 'Saudi National Bank',   short: 'SNB',  color: '#006B54', flag: '🏦', country: 'SA' },
-    { code: 'riyad',   name: 'Riyad Bank',            short: 'RYD',  color: '#005B99', flag: '🏦', country: 'SA' },
-  ],
-  /* Ghana */
-  GH: [
-    { code: 'gcb',     name: 'GCB Bank',              short: 'GCB',  color: '#006A4E', flag: '🏦', country: 'GH' },
-    { code: 'eco_gh',  name: 'Ecobank Ghana',         short: 'ECO',  color: '#0066B3', flag: '🏦', country: 'GH' },
-    { code: 'mtn_momo',name: 'MTN MoMo',              short: 'MoMo', color: '#FFC72C', flag: '📱', country: 'GH' },
-    { code: 'vodagh',  name: 'Vodafone Cash',         short: 'VCash',color: '#E60000', flag: '📱', country: 'GH' },
-    { code: 'access_gh',name: 'Access Bank Ghana',   short: 'ACC',  color: '#F7941D', flag: '🏦', country: 'GH' },
-  ],
-  /* Kenya */
-  KE: [
-    { code: 'mpesa',   name: 'M-Pesa (Safaricom)',    short: 'MPesa',color: '#4CAF50', flag: '📱', country: 'KE' },
-    { code: 'kcb',     name: 'KCB Bank',              short: 'KCB',  color: '#00529B', flag: '🏦', country: 'KE' },
-    { code: 'equity',  name: 'Equity Bank',           short: 'EQT',  color: '#E60028', flag: '🏦', country: 'KE' },
-    { code: 'coop_ke', name: 'Co-op Bank Kenya',      short: 'Coop', color: '#005A8E', flag: '🏦', country: 'KE' },
-  ],
-  /* South Africa */
-  ZA: [
-    { code: 'fnb',     name: 'FNB (First National)',  short: 'FNB',  color: '#00A4E4', flag: '🏦', country: 'ZA' },
-    { code: 'std_za',  name: 'Standard Bank SA',      short: 'STD',  color: '#009FD4', flag: '🏦', country: 'ZA' },
-    { code: 'absa',    name: 'ABSA Bank',             short: 'ABSA', color: '#E2001A', flag: '🏦', country: 'ZA' },
-    { code: 'nedo',    name: 'Nedbank',               short: 'NED',  color: '#009639', flag: '🏦', country: 'ZA' },
-    { code: 'capitec', name: 'Capitec Bank',          short: 'CAP',  color: '#005CA9', flag: '🏦', country: 'ZA' },
-  ],
-  /* Canada */
-  CA: [
-    { code: 'rbc',     name: 'Royal Bank (RBC)',      short: 'RBC',  color: '#005DAA', flag: '🏦', country: 'CA' },
-    { code: 'td_ca',   name: 'TD Canada Trust',       short: 'TD',   color: '#54B848', flag: '🏦', country: 'CA' },
-    { code: 'bmo',     name: 'BMO Bank of Montreal',  short: 'BMO',  color: '#0079C1', flag: '🏦', country: 'CA' },
-    { code: 'scotica', name: 'Scotiabank',            short: 'SCOT', color: '#EC111A', flag: '🏦', country: 'CA' },
-    { code: 'cibc',    name: 'CIBC',                  short: 'CIBC', color: '#C41F3E', flag: '🏦', country: 'CA' },
-    { code: 'intc',    name: 'Interac e-Transfer',    short: 'INT',  color: '#FFC82E', flag: '📱', country: 'CA' },
-  ],
-  /* India */
-  IN: [
-    { code: 'sbi',     name: 'State Bank of India',   short: 'SBI',  color: '#22409A', flag: '🏦', country: 'IN' },
-    { code: 'hdfc',    name: 'HDFC Bank',             short: 'HDFC', color: '#004C8F', flag: '🏦', country: 'IN' },
-    { code: 'icici',   name: 'ICICI Bank',            short: 'ICICI',color: '#F77F00', flag: '🏦', country: 'IN' },
-    { code: 'upi',     name: 'UPI (Unified Payments)',short: 'UPI',  color: '#097939', flag: '📱', country: 'IN' },
-    { code: 'paytm',   name: 'Paytm',                 short: 'Pay',  color: '#00BAF2', flag: '📱', country: 'IN' },
-  ],
-  /* China */
-  CN: [
-    { code: 'icbc',    name: 'ICBC',                  short: 'ICBC', color: '#C8102E', flag: '🏦', country: 'CN' },
-    { code: 'boc',     name: 'Bank of China',         short: 'BOC',  color: '#C8102E', flag: '🏦', country: 'CN' },
-    { code: 'alipay',  name: 'Alipay',                short: 'Ali',  color: '#1677FF', flag: '📱', country: 'CN' },
-    { code: 'wechat',  name: 'WeChat Pay',            short: 'WCP',  color: '#07C160', flag: '📱', country: 'CN' },
-  ],
-  /* Qatar */
-  QA: [
-    { code: 'qnb',      name: 'Qatar National Bank',   short: 'QNB',  color: '#8B0000', flag: '🏦', country: 'QA' },
-    { code: 'cbq',      name: 'Commercial Bank Qatar', short: 'CBQ',  color: '#004B87', flag: '🏦', country: 'QA' },
-    { code: 'dohabank', name: 'Doha Bank',             short: 'DOH',  color: '#005CA9', flag: '🏦', country: 'QA' },
-  ],
-  /* Australia */
-  AU: [
-    { code: 'anz',     name: 'ANZ Bank',              short: 'ANZ',  color: '#007DC6', flag: '🏦', country: 'AU' },
-    { code: 'cba',     name: 'Commonwealth Bank',     short: 'CBA',  color: '#FFCC00', flag: '🏦', country: 'AU' },
-    { code: 'nab',     name: 'NAB',                   short: 'NAB',  color: '#E31837', flag: '🏦', country: 'AU' },
-    { code: 'westpac', name: 'Westpac',               short: 'WBC',  color: '#DA1710', flag: '🏦', country: 'AU' },
-  ],
-  /* Japan */
-  JP: [
-    { code: 'mufg',    name: 'MUFG Bank',             short: 'MUFG', color: '#C8102E', flag: '🏦', country: 'JP' },
-    { code: 'smbc',    name: 'Sumitomo Mitsui (SMBC)', short: 'SMBC', color: '#005BAC', flag: '🏦', country: 'JP' },
-    { code: 'mizuho',  name: 'Mizuho Bank',           short: 'MIZ',  color: '#004EA2', flag: '🏦', country: 'JP' },
-    { code: 'jppost',  name: 'Japan Post Bank',       short: 'JPB',  color: '#CC0000', flag: '🏦', country: 'JP' },
-    { code: 'paypay',  name: 'PayPay',                short: 'Pay',  color: '#E63F21', flag: '📱', country: 'JP' },
-    { code: 'linepay', name: 'LINE Pay',              short: 'LINE', color: '#00C300', flag: '📱', country: 'JP' },
-  ],
-
-  SG: [
-    { code: 'dbs',     name: 'DBS Bank',              short: 'DBS',  color: '#E5202E', flag: '🏦', country: 'SG' },
-    { code: 'ocbc',    name: 'OCBC Bank',             short: 'OCBC', color: '#C41E3A', flag: '🏦', country: 'SG' },
-    { code: 'uob',     name: 'UOB',                   short: 'UOB',  color: '#00529B', flag: '🏦', country: 'SG' },
-    { code: 'paynow',  name: 'PayNow',                short: 'PNow', color: '#6C3786', flag: '📱', country: 'SG' },
-  ],
+  US: makeBanks([
+    ['chase','JPMorgan Chase','Chase','#005DAA','chase.com','US'],
+    ['bofa','Bank of America','BofA','#E31837','bankofamerica.com','US'],
+    ['wells','Wells Fargo','WF','#D71E28','wellsfargo.com','US'],
+    ['citi','Citibank','Citi','#003B6F','citi.com','US'],
+    ['usbk','U.S. Bank','USB','#002855','usbank.com','US'],
+    ['pnc','PNC Bank','PNC','#E57200','pnc.com','US'],
+    ['capitalone','Capital One','CO','#004977','capitalone.com','US'],
+    ['tdus','TD Bank','TD','#54B848','td.com','US'],
+    ['ally','Ally Bank','Ally','#6E1E7D','ally.com','US'],
+  ]),
+  GB: makeBanks([
+    ['barclays','Barclays','BARC','#00AEEF','barclays.co.uk','GB'],
+    ['hsbc','HSBC UK','HSBC','#DB0011','hsbc.co.uk','GB'],
+    ['lloyds','Lloyds Bank','LLOYD','#024731','lloydsbank.com','GB'],
+    ['natwest','NatWest','NW','#42145F','natwest.com','GB'],
+    ['santuk','Santander UK','SAN','#EC0000','santander.co.uk','GB'],
+    ['halifax','Halifax','HAL','#005EB8','halifax.co.uk','GB'],
+    ['monzo','Monzo','MON','#FF3464','monzo.com','GB'],
+    ['starling','Starling Bank','STAR','#6935D3','starlingbank.com','GB'],
+    ['revolut','Revolut','REV','#191C1F','revolut.com','GB'],
+  ]),
+  DE: makeBanks([
+    ['db','Deutsche Bank','DB','#003399','db.com','DE'],
+    ['commerz','Commerzbank','CB','#FFCC00','commerzbank.de','DE'],
+    ['n26','N26','N26','#48AC98','n26.com','DE'],
+    ['dkb','DKB','DKB','#0075C9','dkb.de','DE'],
+    ['sparkasse','Sparkasse','SPK','#E60000','sparkasse.de','DE'],
+  ]),
+  FR: makeBanks([
+    ['bnpfr','BNP Paribas','BNP','#00965E','mabanque.bnpparibas','FR'],
+    ['socgen','Société Générale','SG','#E60028','particuliers.sg.fr','FR'],
+    ['lcl','LCL','LCL','#009FE3','lcl.fr','FR'],
+    ['creditag','Crédit Agricole','CA','#008D55','credit-agricole.fr','FR'],
+    ['bpce','Banque Populaire','BP','#E4002B','banquepopulaire.fr','FR'],
+  ]),
+  NL: makeBanks([
+    ['ingnl','ING Netherlands','ING','#FF6200','ing.nl','NL'],
+    ['abn','ABN AMRO','ABN','#00AEEF','abnamro.nl','NL'],
+    ['rabobank','Rabobank','RABO','#FF6600','rabobank.nl','NL'],
+  ]),
+  IT: makeBanks([
+    ['intesa','Intesa Sanpaolo','ISP','#007A53','intesasanpaolo.com','IT'],
+    ['unicredit','UniCredit','UCR','#E60000','unicredit.it','IT'],
+    ['bpm','Banco BPM','BPM','#0072BC','bancobpm.it','IT'],
+  ]),
+  ES: makeBanks([
+    ['sant_es','Banco Santander','SAN','#EC0000','bancosantander.es','ES'],
+    ['bbva','BBVA','BBVA','#004481','bbva.es','ES'],
+    ['caixa','CaixaBank','CAIXA','#007EAE','caixabank.es','ES'],
+    ['sabadell','Banco Sabadell','SAB','#0075C9','bancsabadell.com','ES'],
+  ]),
+  IE: makeBanks([
+    ['aib','AIB','AIB','#007D5B','aib.ie','IE'],
+    ['boi','Bank of Ireland','BOI','#00804B','bankofireland.com','IE'],
+    ['ptsb','Permanent TSB','PTSB','#00AEEF','ptsb.ie','IE'],
+  ]),
+  AE: makeBanks([
+    ['enbd','Emirates NBD','ENBD','#C8102E','emiratesnbd.com','AE'],
+    ['fab','First Abu Dhabi Bank','FAB','#00855A','bankfab.com','AE'],
+    ['adcb','Abu Dhabi Commercial Bank','ADCB','#00529B','adcb.com','AE'],
+    ['mashreq','Mashreq Bank','MASH','#E31E25','mashreq.com','AE'],
+    ['dib','Dubai Islamic Bank','DIB','#00843D','dib.ae','AE'],
+    ['wio','Wio Bank','WIO','#6C2BD9','wio.io','AE'],
+  ]),
+  SA: makeBanks([
+    ['alrajhi','Al Rajhi Bank','ARB','#00704A','alrajhibank.com.sa','SA'],
+    ['snb','Saudi National Bank','SNB','#006B54','alahli.com','SA'],
+    ['riyad','Riyad Bank','RYD','#005B99','riyadbank.com','SA'],
+    ['alinma','Alinma Bank','INMA','#009B77','alinma.com','SA'],
+  ]),
+  QA: makeBanks([
+    ['qnb','Qatar National Bank','QNB','#8B0000','qnb.com','QA'],
+    ['cbq','Commercial Bank Qatar','CBQ','#004B87','cbq.qa','QA'],
+    ['dohabank','Doha Bank','DOHA','#005CA9','dohabank.com.qa','QA'],
+    ['dukhan','Dukhan Bank','DUK','#6C1D45','dukhanbank.com','QA'],
+  ]),
+  KW: makeBanks([
+    ['nbk','National Bank of Kuwait','NBK','#007A53','nbk.com','KW'],
+    ['gulfkw','Gulf Bank','GULF','#E31B54','e-gulfbank.com','KW'],
+    ['boubyan','Boubyan Bank','BOU','#7B2CBF','boubyan.bank','KW'],
+  ]),
+  BH: makeBanks([
+    ['nbb','National Bank of Bahrain','NBB','#C8102E','nbbonline.com','BH'],
+    ['bbk','Bank of Bahrain and Kuwait','BBK','#00529B','bbkonline.com','BH'],
+    ['bisb','Bahrain Islamic Bank','BISB','#00843D','bisb.com','BH'],
+  ]),
+  GH: makeBanks([
+    ['gcb','GCB Bank','GCB','#006A4E','gcbbank.com.gh','GH'],
+    ['ecogh','Ecobank Ghana','ECO','#0066B3','ecobank.com','GH'],
+    ['accessgh','Access Bank Ghana','ACC','#F7941D','ghana.accessbankplc.com','GH'],
+    ['absa_gh','Absa Bank Ghana','ABSA','#E2001A','absa.com.gh','GH'],
+    ['stanbicgh','Stanbic Bank Ghana','STB','#0033A0','stanbic.com.gh','GH'],
+    ['fidelitygh','Fidelity Bank Ghana','FID','#7B2D8E','myfidelitybank.net','GH'],
+    ['cal','CalBank','CAL','#E31C23','calbank.net','GH'],
+    ['mtnmomo','MTN MoMo','MOMO','#FFC72C','mtn.com.gh','GH'],
+  ]),
+  KE: makeBanks([
+    ['kcb','KCB Bank Kenya','KCB','#00529B','kcbgroup.com','KE'],
+    ['equity','Equity Bank','EQT','#E60028','equitygroupholdings.com','KE'],
+    ['coopke','Co-operative Bank','COOP','#005A8E','co-opbank.co.ke','KE'],
+    ['absa_ke','Absa Bank Kenya','ABSA','#E2001A','absa.co.ke','KE'],
+    ['stanbicke','Stanbic Bank Kenya','STB','#0033A0','stanbicbank.co.ke','KE'],
+    ['ncba','NCBA Bank','NCBA','#00AEEF','ncbagroup.com','KE'],
+    ['mpesa','M-Pesa','MPESA','#4CAF50','safaricom.co.ke','KE'],
+  ]),
+  ZA: makeBanks([
+    ['fnb','First National Bank','FNB','#00A4E4','fnb.co.za','ZA'],
+    ['standardza','Standard Bank','STD','#009FD4','standardbank.co.za','ZA'],
+    ['absa','Absa Bank','ABSA','#E2001A','absa.co.za','ZA'],
+    ['nedbank','Nedbank','NED','#009639','nedbank.co.za','ZA'],
+    ['capitec','Capitec Bank','CAP','#005CA9','capitecbank.co.za','ZA'],
+    ['investec','Investec Bank','INV','#000000','investec.com','ZA'],
+  ]),
+  EG: makeBanks([
+    ['nbe','National Bank of Egypt','NBE','#006B4F','nbe.com.eg','EG'],
+    ['banquemisr','Banque Misr','BM','#D71920','banquemisr.com','EG'],
+    ['cibeg','Commercial International Bank','CIB','#8A1538','cibeg.com','EG'],
+    ['qnb_eg','QNB Alahli','QNB','#8B0000','qnbalahli.com','EG'],
+    ['alexbank','AlexBank','ALEX','#0072BC','alexbank.com','EG'],
+  ]),
+  ET: makeBanks([
+    ['cbe','Commercial Bank of Ethiopia','CBE','#00A651','combanketh.et','ET'],
+    ['awash','Awash Bank','AWASH','#0066B3','awashbank.com','ET'],
+    ['dashen','Dashen Bank','DASH','#E31C23','dashenbanksc.com','ET'],
+    ['abyssinia','Bank of Abyssinia','BOA','#007A53','bankofabyssinia.com','ET'],
+  ]),
+  UG: makeBanks([
+    ['stanbicug','Stanbic Bank Uganda','STB','#0033A0','stanbicbank.co.ug','UG'],
+    ['centenary','Centenary Bank','CENT','#006B4F','centenarybank.co.ug','UG'],
+    ['dfcu','dfcu Bank','DFCU','#00AEEF','dfcugroup.com','UG'],
+    ['absa_ug','Absa Bank Uganda','ABSA','#E2001A','absa.co.ug','UG'],
+  ]),
+  TZ: makeBanks([
+    ['crdb','CRDB Bank','CRDB','#006B4F','crdbbank.co.tz','TZ'],
+    ['nmbtz','NMB Bank','NMB','#00AEEF','nmbbank.co.tz','TZ'],
+    ['absa_tz','Absa Bank Tanzania','ABSA','#E2001A','absa.co.tz','TZ'],
+    ['stanbictz','Stanbic Bank Tanzania','STB','#0033A0','stanbicbank.co.tz','TZ'],
+  ]),
+  RW: makeBanks([
+    ['bk','Bank of Kigali','BK','#006B4F','bk.rw','RW'],
+    ['equityrw','Equity Bank Rwanda','EQT','#E60028','equitybank.co.rw','RW'],
+    ['bpr','BPR Bank Rwanda','BPR','#00529B','bpr.rw','RW'],
+  ]),
+  US: makeBanks([
+    ['paypal_us','PayPal','PP','#003087','paypal.com','US'],
+  ]),
+  CA: makeBanks([
+    ['rbc','Royal Bank of Canada','RBC','#005DAA','rbc.com','CA'],
+    ['tdca','TD Canada Trust','TD','#54B848','td.com','CA'],
+    ['bmo','Bank of Montreal','BMO','#0079C1','bmo.com','CA'],
+    ['scotia','Scotiabank','SCOT','#EC111A','scotiabank.com','CA'],
+    ['cibc','CIBC','CIBC','#C41F3E','cibc.com','CA'],
+    ['nationalca','National Bank of Canada','NBC','#E31B54','bnc.ca','CA'],
+  ]),
+  BR: makeBanks([
+    ['itau','Itaú Unibanco','ITAU','#EC7000','itau.com.br','BR'],
+    ['bradesco','Bradesco','BRA','#CC092F','banco.bradesco','BR'],
+    ['santbr','Santander Brasil','SAN','#EC0000','santander.com.br','BR'],
+    ['bbbr','Banco do Brasil','BB','#F8D117','bb.com.br','BR'],
+    ['caixa_br','Caixa Econômica Federal','CEF','#0066B3','caixa.gov.br','BR'],
+    ['nubank','Nubank','NU','#820AD1','nubank.com.br','BR'],
+  ]),
+  MX: makeBanks([
+    ['bbva_mx','BBVA México','BBVA','#004481','bbva.mx','MX'],
+    ['santmx','Santander México','SAN','#EC0000','santander.com.mx','MX'],
+    ['banorte','Banorte','BAN','#EB0029','banorte.com','MX'],
+    ['hsbcmx','HSBC México','HSBC','#DB0011','hsbc.com.mx','MX'],
+    ['citibanamex','Citibanamex','CITI','#003B70','citibanamex.com','MX'],
+  ]),
+  CH: makeBanks([
+    ['ubs','UBS','UBS','#E60000','ubs.com','CH'],
+    ['postfinance','PostFinance','POST','#FFD500','postfinance.ch','CH'],
+    ['raiffeisen_ch','Raiffeisen Switzerland','RAI','#F5A623','raiffeisen.ch','CH'],
+    ['zuercher','Zürcher Kantonalbank','ZKB','#0072BC','zkb.ch','CH'],
+  ]),
+  SE: makeBanks([
+    ['seb','SEB','SEB','#006B4F','seb.se','SE'],
+    ['swedbank','Swedbank','SWED','#F5A623','swedbank.se','SE'],
+    ['handelsbanken','Handelsbanken','SHB','#00529B','handelsbanken.se','SE'],
+    ['nordea_se','Nordea','NOR','#00005E','nordea.se','SE'],
+  ]),
+  NO: makeBanks([
+    ['dnb','DNB','DNB','#007A53','dnb.no','NO'],
+    ['nordea_no','Nordea Norway','NOR','#00005E','nordea.no','NO'],
+    ['sparebank1','SpareBank 1','SB1','#0072BC','sparebank1.no','NO'],
+  ]),
+  PL: makeBanks([
+    ['pkobp','PKO Bank Polski','PKO','#0066B3','pkobp.pl','PL'],
+    ['mbank','mBank','MB','#E31B54','mbank.pl','PL'],
+    ['santpl','Santander Bank Polska','SAN','#EC0000','santander.pl','PL'],
+    ['pekao','Bank Pekao','PEK','#D71920','pekao.com.pl','PL'],
+  ]),
+  CN: makeBanks([
+    ['icbc','Industrial and Commercial Bank of China','ICBC','#C8102E','icbc.com.cn','CN'],
+    ['boc','Bank of China','BOC','#C8102E','boc.cn','CN'],
+    ['ccb','China Construction Bank','CCB','#003399','ccb.com','CN'],
+    ['abc','Agricultural Bank of China','ABC','#00965E','abchina.com','CN'],
+    ['cmb','China Merchants Bank','CMB','#C8102E','cmbchina.com','CN'],
+  ]),
+  JP: makeBanks([
+    ['mufg','MUFG Bank','MUFG','#C8102E','bk.mufg.jp','JP'],
+    ['smbc','Sumitomo Mitsui Banking Corporation','SMBC','#005BAC','smbc.co.jp','JP'],
+    ['mizuho','Mizuho Bank','MIZ','#004EA2','mizuhobank.co.jp','JP'],
+    ['jppost','Japan Post Bank','JPB','#CC0000','jp-bank.japanpost.jp','JP'],
+    ['rakuten','Rakuten Bank','RAK','#BF0000','rakuten-bank.co.jp','JP'],
+  ]),
+  IN: makeBanks([
+    ['sbi','State Bank of India','SBI','#22409A','sbi.co.in','IN'],
+    ['hdfc','HDFC Bank','HDFC','#004C8F','hdfcbank.com','IN'],
+    ['icici','ICICI Bank','ICICI','#F77F00','icicibank.com','IN'],
+    ['axis','Axis Bank','AXIS','#8A1538','axisbank.com','IN'],
+    ['kotak','Kotak Mahindra Bank','KOTAK','#ED1C24','kotak.com','IN'],
+    ['pnb','Punjab National Bank','PNB','#E31B54','pnbindia.in','IN'],
+  ]),
+  KR: makeBanks([
+    ['kb','KB Kookmin Bank','KB','#6B2D8B','kbstar.com','KR'],
+    ['shinhan','Shinhan Bank','SHIN','#005BAC','shinhan.com','KR'],
+    ['hana','Hana Bank','HANA','#009B77','kebhana.com','KR'],
+    ['woori','Woori Bank','WOORI','#0072BC','wooribank.com','KR'],
+    ['nh','NongHyup Bank','NH','#00843D','nonghyup.com','KR'],
+  ]),
+  SG: makeBanks([
+    ['dbs','DBS Bank','DBS','#E5202E','dbs.com.sg','SG'],
+    ['ocbc','OCBC Bank','OCBC','#C41E3A','ocbc.com','SG'],
+    ['uob','United Overseas Bank','UOB','#00529B','uob.com.sg','SG'],
+    ['maybanksg','Maybank Singapore','MAY','#F5C400','maybank2u.com.sg','SG'],
+  ]),
+  HK: makeBanks([
+    ['hsbchk','HSBC Hong Kong','HSBC','#DB0011','hsbc.com.hk','HK'],
+    ['boc_hk','Bank of China (Hong Kong)','BOCHK','#C8102E','bochk.com','HK'],
+    ['hangseng','Hang Seng Bank','HSB','#00843D','hangseng.com','HK'],
+    ['sc_hk','Standard Chartered Hong Kong','SCB','#0072AA','sc.com/hk','HK'],
+    ['bea','Bank of East Asia','BEA','#B5121B','hkbea.com','HK'],
+  ]),
+  MY: makeBanks([
+    ['maybank','Maybank','MAY','#F5C400','maybank.com','MY'],
+    ['cimb','CIMB Bank','CIMB','#D71920','cimb.com.my','MY'],
+    ['publicmy','Public Bank','PB','#E31B54','pbebank.com','MY'],
+    ['rhb','RHB Bank','RHB','#00529B','rhbgroup.com','MY'],
+    ['hongleong','Hong Leong Bank','HLB','#D71920','hlb.com.my','MY'],
+  ]),
+  ID: makeBanks([
+    ['bca','Bank Central Asia (BCA)','BCA','#0066B3','bca.co.id','ID'],
+    ['mandiri','Bank Mandiri','MANDIRI','#003399','bankmandiri.co.id','ID'],
+    ['bri','Bank Rakyat Indonesia','BRI','#00529B','bri.co.id','ID'],
+    ['bni','Bank Negara Indonesia','BNI','#F58220','bni.co.id','ID'],
+    ['permata','PermataBank','PERMATA','#00843D','permatabank.com','ID'],
+  ]),
+  PH: makeBanks([
+    ['bdo','BDO Unibank','BDO','#0072BC','bdo.com.ph','PH'],
+    ['bpi','Bank of the Philippine Islands','BPI','#8A1538','bpi.com.ph','PH'],
+    ['metrobank','Metrobank','METRO','#003399','metrobank.com.ph','PH'],
+    ['landbank','Land Bank of the Philippines','LANDBANK','#00843D','landbank.com','PH'],
+    ['unionph','UnionBank of the Philippines','UBP','#E31B54','unionbankph.com','PH'],
+  ]),
+  TH: makeBanks([
+    ['bbl','Bangkok Bank','BBL','#0072BC','bangkokbank.com','TH'],
+    ['kbank','Kasikornbank','KBANK','#00843D','kasikornbank.com','TH'],
+    ['scbth','Siam Commercial Bank','SCB','#6B2D8B','scb.co.th','TH'],
+    ['krungthai','Krungthai Bank','KTB','#009B77','krungthai.com','TH'],
+    ['krungsri','Bank of Ayudhya','BAY','#F5C400','krungsri.com','TH'],
+  ]),
+  AU: makeBanks([
+    ['anz','ANZ','ANZ','#007DC6','anz.com.au','AU'],
+    ['cba','Commonwealth Bank','CBA','#FFCC00','commbank.com.au','AU'],
+    ['nab','National Australia Bank','NAB','#E31837','nab.com.au','AU'],
+    ['westpac','Westpac','WBC','#DA1710','westpac.com.au','AU'],
+    ['macquarie','Macquarie Bank','MAC','#000000','macquarie.com.au','AU'],
+  ]),
+  NZ: makeBanks([
+    ['anznz','ANZ New Zealand','ANZ','#007DC6','anz.co.nz','NZ'],
+    ['bnznz','Bank of New Zealand','BNZ','#D71920','bnz.co.nz','NZ'],
+    ['asb','ASB Bank','ASB','#F5C400','asb.co.nz','NZ'],
+    ['westpacnz','Westpac New Zealand','WBC','#DA1710','westpac.co.nz','NZ'],
+    ['kiwi','Kiwibank','KIWI','#00843D','kiwibank.co.nz','NZ'],
+  ]),
 };
 
-/* Map currency code → country codes that use it */
 export const CURRENCY_COUNTRIES: Record<string, string[]> = {
-  NGN: ['NG'],
-  USD: ['US'],
-  GBP: ['GB'],
-  EUR: ['DE', 'FR'],
-  AED: ['AE'],
-  SAR: ['SA'],
-  QAR: ['QA'],    // Qatar Riyal
-  GHS: ['GH'],
-  KES: ['KE'],
-  ZAR: ['ZA'],
-  CAD: ['CA'],
-  INR: ['IN'],
-  CNY: ['CN'],
-  JPY: ['JP'],    // Japanese Yen
-  AUD: ['AU'],
-  NZD: ['AU'],    // NZD — use Australian banks as closest available
-  SGD: ['SG'],
-  HKD: ['SG'],    // HKD — use Singapore banks as closest available
-  KRW: ['SG'],    // KRW — use Singapore banks as closest available
-  MYR: ['SG'],    // MYR — use Singapore banks
-  IDR: ['SG'],
-  PHP: ['SG'],
-  THB: ['SG'],
-  BRL: ['US'],    // BRL — use US banks (international remittance)
-  MXN: ['US'],
-  CHF: ['DE'],    // CHF — use European banks
-  SEK: ['DE'],
-  NOK: ['DE'],
-  PLN: ['DE'],
-  EGP: ['AE'],    // EGP — use UAE banks (common corridor)
-  ETB: ['KE'],    // ETB — use Kenya banks (East Africa corridor)
-  UGX: ['KE'],
-  TZS: ['KE'],
-  RWF: ['KE'],
-  XOF: ['GH'],    // West African CFA — use Ghana banks
-  BHD: ['AE'],
-  KWD: ['AE'],
+  NGN:['NG'], USD:['US'], GBP:['GB'], EUR:['DE','FR','NL','IT','ES','IE'],
+  AED:['AE'], SAR:['SA'], QAR:['QA'], KWD:['KW'], BHD:['BH'],
+  GHS:['GH'], KES:['KE'], ZAR:['ZA'], EGP:['EG'], ETB:['ET'],
+  UGX:['UG'], TZS:['TZ'], RWF:['RW'], XOF:['GH'],
+  CAD:['CA'], BRL:['BR'], MXN:['MX'], CHF:['CH'], SEK:['SE'],
+  NOK:['NO'], PLN:['PL'], CNY:['CN'], JPY:['JP'], INR:['IN'],
+  KRW:['KR'], SGD:['SG'], HKD:['HK'], MYR:['MY'], IDR:['ID'],
+  PHP:['PH'], THB:['TH'], AUD:['AU'], NZD:['NZ'],
 };
 
-/** Get banks for a currency. Falls back to NG_BANKS for NGN. */
 export function getBanksForCurrency(currencyCode: string): Bank[] {
-  if (currencyCode === 'NGN' || !currencyCode) return NG_BANKS;
+  if (!currencyCode || currencyCode === 'NGN') return NG_BANKS;
   const countries = CURRENCY_COUNTRIES[currencyCode] ?? [];
-  const banks = countries.flatMap(c => INTL_BANKS[c] ?? []);
-  return banks.length > 0 ? banks : NG_BANKS;
+  return countries.flatMap(country => INTL_BANKS[country] ?? []);
 }
 
-/** Country flag emoji for a currency */
 export const CURRENCY_FLAG: Record<string, string> = {
-  NGN: '🇳🇬', USD: '🇺🇸', GBP: '🇬🇧', EUR: '🇪🇺', AED: '🇦🇪',
-  SAR: '🇸🇦', GHS: '🇬🇭', KES: '🇰🇪', ZAR: '🇿🇦', CAD: '🇨🇦',
-  INR: '🇮🇳', CNY: '🇨🇳', AUD: '🇦🇺', SGD: '🇸🇬',
+  NGN:'🇳🇬', USD:'🇺🇸', GBP:'🇬🇧', EUR:'🇪🇺', AED:'🇦🇪',
+  SAR:'🇸🇦', GHS:'🇬🇭', KES:'🇰🇪', ZAR:'🇿🇦', CAD:'🇨🇦',
+  INR:'🇮🇳', CNY:'🇨🇳', AUD:'🇦🇺', NZD:'🇳🇿', SGD:'🇸🇬',
+  HKD:'🇭🇰', KRW:'🇰🇷', MYR:'🇲🇾', IDR:'🇮🇩', PHP:'🇵🇭',
+  THB:'🇹🇭', BRL:'🇧🇷', MXN:'🇲🇽', CHF:'🇨🇭', SEK:'🇸🇪',
+  NOK:'🇳🇴', PLN:'🇵🇱', EGP:'🇪🇬', ETB:'🇪🇹', UGX:'🇺🇬',
+  TZS:'🇹🇿', RWF:'🇷🇼', XOF:'🌍', QAR:'🇶🇦', KWD:'🇰🇼', BHD:'🇧🇭',
 };
 
-/** Mock name enquiry — real integration would call NIBSS / Paystack resolve */
+/** Demo-only name enquiry. Replace with a licensed account-verification provider. */
 export async function resolveAccountName(accountNumber: string, _bankCode: string): Promise<string> {
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(resolve => setTimeout(resolve, 600));
   if (!/^\d{10}$/.test(accountNumber)) throw new Error('Account number must be 10 digits');
-  const names = [
-    'Chinedu Okafor', 'Adaobi Nwosu', 'Ibrahim Musa',
-    'Funke Adeyemi', 'Tunde Bakare', 'Ngozi Eze',
-    'Yusuf Bello', 'Blessing Okoro',
-  ];
-  const idx = parseInt(accountNumber.slice(-2), 10) % names.length;
-  return names[idx];
+  const names = ['Chinedu Okafor','Adaobi Nwosu','Ibrahim Musa','Funke Adeyemi','Tunde Bakare','Ngozi Eze','Yusuf Bello','Blessing Okoro'];
+  return names[parseInt(accountNumber.slice(-2), 10) % names.length];
 }
