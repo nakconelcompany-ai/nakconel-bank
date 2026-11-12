@@ -1,10 +1,15 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { getAccountBalanceKobo, postJournal } from '@/domains/ledger/service';
 import { writeAudit } from '@/lib/audit';
 
 const DEFAULT_FEE_KOBO = 5000; // NGN 50
 const DAILY_LIMIT_KOBO = 500_000 * 100; // NGN 500,000 daily limit
 
+/**
+ * Internal Nakconel-to-Nakconel transfer only.
+ * External bank payouts must be implemented through a licensed transfer provider;
+ * this function deliberately never treats an external bank account as settled.
+ */
 export async function createTransfer(input: {
   userId: string;
   fromAccountId: string;
@@ -16,66 +21,109 @@ export async function createTransfer(input: {
   pinVerified: boolean;
 }) {
   if (!input.pinVerified) throw new Error('PIN required');
-  if (input.amountKobo < 100) throw new Error('Minimum transfer is ₦1');
-
-  const fee   = DEFAULT_FEE_KOBO;
-  const total = input.amountKobo + fee;
-
-  const account = await prisma.account.findFirst({
-    where: { id: input.fromAccountId, userId: input.userId },
-  });
-  if (!account) throw new Error('Account not found');
-
-  // Enforce daily transfer limit
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const todayAgg = await prisma.transfer.aggregate({
-    where: { fromAccountId: input.fromAccountId, status: 'COMPLETED', createdAt: { gte: startOfDay } },
-    _sum: { amount: true },
-  });
-  const sentToday = todayAgg._sum.amount ?? 0;
-  if (sentToday + input.amountKobo > DAILY_LIMIT_KOBO) {
-    const remaining = Math.max(0, DAILY_LIMIT_KOBO - sentToday) / 100;
-    throw new Error(`Daily transfer limit reached. You can send up to ₦${remaining.toLocaleString('en-NG')} more today.`);
+  if (!Number.isSafeInteger(input.amountKobo) || input.amountKobo < 100) {
+    throw new Error('Minimum transfer is ₦1');
+  }
+  if (!/^\d{10}$/.test(input.beneficiaryAccount)) {
+    throw new Error('Enter a valid 10-digit Nakconel account number.');
   }
 
-  const balance = await getAccountBalanceKobo(input.fromAccountId);
-  if (balance < total) throw new Error('Insufficient balance');
+  const fee = DEFAULT_FEE_KOBO;
+  const total = input.amountKobo + fee;
 
-  const transfer = await prisma.transfer.create({
-    data: {
-      fromAccountId:      input.fromAccountId,
-      amount:             input.amountKobo,
-      fee,
-      currency:           'NGN',
-      status:             'PROCESSING',
-      beneficiaryName:    input.beneficiaryName,
-      beneficiaryAccount: input.beneficiaryAccount,
-      note:               input.note,
-      idempotencyKey:     input.idempotencyKey,
-    },
-  });
+  const completed = await prisma.$transaction(async (tx) => {
+    const replay = await tx.transfer.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+    if (replay) return replay;
 
-  const journal = await postJournal({
-    description: `Transfer to ${input.beneficiaryName}`,
-    entries: [
-      { debitAccountId: input.fromAccountId, creditAccountId: `external:${input.beneficiaryAccount}`, amount: input.amountKobo, reference: transfer.id },
-      { debitAccountId: input.fromAccountId, creditAccountId: 'fee:nakconel', amount: fee, reference: `${transfer.id}-fee` },
-    ],
-  });
+    const sender = await tx.account.findFirst({
+      where: { id: input.fromAccountId, userId: input.userId, status: 'ACTIVE', currency: 'NGN' },
+    });
+    if (!sender) throw new Error('Active NGN source account not found.');
 
-  const completed = await prisma.transfer.update({
-    where: { id: transfer.id },
-    data:  { status: 'COMPLETED', journalId: journal.id },
-  });
+    const recipient = await tx.account.findFirst({
+      where: { accountNumber: input.beneficiaryAccount, status: 'ACTIVE', currency: 'NGN' },
+    });
+    if (!recipient) {
+      throw new Error('This bank is not connected to Nakconel transfers yet. External bank payouts are currently unavailable.');
+    }
+    if (recipient.id === sender.id) throw new Error('You cannot transfer money to the same account.');
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const todayAgg = await tx.transfer.aggregate({
+      where: { fromAccountId: sender.id, status: 'COMPLETED', createdAt: { gte: startOfDay } },
+      _sum: { amount: true },
+    });
+    const sentToday = todayAgg._sum.amount ?? 0;
+    if (sentToday + input.amountKobo > DAILY_LIMIT_KOBO) {
+      const remaining = Math.max(0, DAILY_LIMIT_KOBO - sentToday) / 100;
+      throw new Error(`Daily transfer limit reached. You can send up to ₦${remaining.toLocaleString('en-NG')} more today.`);
+    }
+
+    const [credits, debits] = await Promise.all([
+      tx.ledgerEntry.aggregate({
+        where: { creditAccountId: sender.id, status: 'POSTED', currency: 'NGN' },
+        _sum: { amount: true },
+      }),
+      tx.ledgerEntry.aggregate({
+        where: { debitAccountId: sender.id, status: 'POSTED', currency: 'NGN' },
+        _sum: { amount: true },
+      }),
+    ]);
+    const balance = (credits._sum.amount ?? 0) - (debits._sum.amount ?? 0);
+    if (balance < total) throw new Error('Insufficient balance.');
+
+    const journal = await tx.journal.create({
+      data: {
+        description: `Nakconel transfer to ${input.beneficiaryName}`,
+        entries: {
+          create: [
+            {
+              debitAccountId: sender.id,
+              creditAccountId: recipient.id,
+              amount: input.amountKobo,
+              currency: 'NGN',
+              reference: input.idempotencyKey,
+              status: 'POSTED',
+              metadata: { transferType: 'INTERNAL' },
+            },
+            {
+              debitAccountId: sender.id,
+              creditAccountId: 'fee:nakconel',
+              amount: fee,
+              currency: 'NGN',
+              reference: `${input.idempotencyKey}-fee`,
+              status: 'POSTED',
+              metadata: { transferType: 'FEE' },
+            },
+          ],
+        },
+      },
+    });
+
+    return tx.transfer.create({
+      data: {
+        fromAccountId: sender.id,
+        toAccountId: recipient.id,
+        amount: input.amountKobo,
+        fee,
+        currency: 'NGN',
+        status: 'COMPLETED',
+        beneficiaryName: recipient.id === sender.id ? sender.id : input.beneficiaryName,
+        beneficiaryAccount: input.beneficiaryAccount,
+        note: input.note,
+        idempotencyKey: input.idempotencyKey,
+        journalId: journal.id,
+      },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   await writeAudit({
-    userId:     input.userId,
-    action:     'TRANSFER_COMPLETED',
-    resource:   'transfer',
+    userId: input.userId,
+    action: 'INTERNAL_TRANSFER_COMPLETED',
+    resource: 'transfer',
     resourceId: completed.id,
-    meta:       { amount: input.amountKobo, fee, to: input.beneficiaryAccount },
+    meta: { amount: input.amountKobo, fee, toAccount: input.beneficiaryAccount },
   });
-
   return completed;
 }
