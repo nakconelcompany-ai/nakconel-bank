@@ -84,7 +84,7 @@ export default function InternationalView({ userId: _userId, onToast, balanceNgn
       .finally(() => setLoading(false));
   }, [onToast]);
 
-  const getRate = (code: string): number => rates[code] ?? 1;
+  const getRate = (code: string): number => code === 'NGN' ? 1 : (rates[code] ?? 0);
 
   const currencies = CURRENCY_META.map(c => ({ ...c, rate: getRate(c.code) }));
 
@@ -161,7 +161,7 @@ export default function InternationalView({ userId: _userId, onToast, balanceNgn
         {!loading && filtered.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No currencies found</div>}
         {!loading && filtered.map((c, i) => {
           const isActive  = c.code === activeCurrency;
-          const converted = balanceNgn > 0 ? fmt(balanceNgn, c.rate, c.symbol, c.code) : null;
+          const converted = balanceNgn > 0 && c.rate > 0 ? fmt(balanceNgn, c.rate, c.symbol, c.code) : null;
           return (
             <button key={c.code} type="button" onClick={() => handleSwitch(c)}
               style={{
