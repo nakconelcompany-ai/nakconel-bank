@@ -126,6 +126,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
   const [sPhone, setSPhone]     = useState('');
   const [sEmail, setSEmail]     = useState('');
   const [sOtp, setSOtp]         = useState('');
+  const [sSignupVerificationToken, setSSignupVerificationToken] = useState('');
   const [sOtpWait, setSOtpWait] = useState(0);
   const [sBvn, setSBvn]         = useState('');
   const [sNin, setSNin]         = useState('');
@@ -244,7 +245,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
   };
 
   const resetSignup = () => {
-    setSStep('phone-email'); setSPhone(''); setSEmail(''); setSOtp(''); setSOtpWait(0);
+    setSStep('phone-email'); setSPhone(''); setSEmail(''); setSOtp(''); setSOtpWait(0); setSSignupVerificationToken('');
     setSBvn(''); setSNin(''); setSFaceDone(false); setSFaceStage(0);
     setSFaceHint('Preparing camera…'); setSCamReady(false); setSCamErr('');
     setSSelfie(null); setSFullName(''); setSdob(''); setSPassword('');
@@ -273,6 +274,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
     });
     const json = await res.json();
     if (!res.ok || !json.success) throw new Error(json.error ?? 'Invalid or expired code');
+    setSSignupVerificationToken(json.data?.signupVerificationToken ?? '');
     setSStep('identity');
   });
 
@@ -286,6 +288,7 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
         email:    sEmail.trim(),
         password: sPassword,
         pin:      confirmedPin,
+        signupVerificationToken: sSignupVerificationToken,
         dateOfBirth: sDob || undefined,
       }),
     });
