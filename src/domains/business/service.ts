@@ -34,8 +34,8 @@ export async function createInvoice(input: {
   amountNaira: number; description?: string; dueDate?: string;
 }) {
   const biz = await getOrCreateBusiness(input.userId);
-  const count = await prisma.invoice.count({ where: { businessId: biz.id } });
-  const invoiceNumber = `INV-${String(count + 1).padStart(5, '0')}`;
+  // A random suffix avoids duplicate invoice numbers when requests arrive concurrently.
+  const invoiceNumber = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   const inv = await prisma.invoice.create({
     data: {
       businessId: biz.id, invoiceNumber, customerName: input.customerName,
