@@ -42,6 +42,7 @@ export async function createTransfer(input: {
 
     const recipient = await tx.account.findFirst({
       where: { accountNumber: input.beneficiaryAccount, status: 'ACTIVE', currency: 'NGN' },
+      include: { user: { select: { fullName: true } } },
     });
     if (!recipient) {
       throw new Error('This bank is not connected to Nakconel transfers yet. External bank payouts are currently unavailable.');
@@ -75,7 +76,7 @@ export async function createTransfer(input: {
 
     const journal = await tx.journal.create({
       data: {
-        description: `Nakconel transfer to ${input.beneficiaryName}`,
+        description: `Nakconel transfer to ${recipient.user.fullName}`,
         entries: {
           create: [
             {
@@ -109,7 +110,7 @@ export async function createTransfer(input: {
         fee,
         currency: 'NGN',
         status: 'COMPLETED',
-        beneficiaryName: recipient.id === sender.id ? sender.id : input.beneficiaryName,
+        beneficiaryName: recipient.user.fullName,
         beneficiaryAccount: input.beneficiaryAccount,
         note: input.note,
         idempotencyKey: input.idempotencyKey,
