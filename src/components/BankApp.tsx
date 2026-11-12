@@ -573,7 +573,11 @@ export default function BankApp() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{b.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                  {b.flag === '📱' ? 'Mobile wallet' : 'Bank'} · {viewCurrency.code}
+                  {b.category === 'payment-service' ? 'Payment Service Bank' :
+                    b.category === 'mobile-money' ? 'Mobile money' :
+                    b.category === 'digital' ? 'Digital / microfinance bank' :
+                    b.category === 'credit-union' ? 'Credit union' :
+                    b.category === 'commercial' ? 'Commercial / merchant bank' : 'Bank'} · {viewCurrency.code}
                 </div>
               </div>
               {sendBank === b.code && (
