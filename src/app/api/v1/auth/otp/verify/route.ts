@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { verifyEmailOtp, issuePasswordResetToken } from '@/domains/identity/service';
+import { verifyEmailOtp, issuePasswordResetToken, issueSignupVerificationToken } from '@/domains/identity/service';
 
 const schema = z.object({
   email:   z.string().email(),
@@ -33,5 +33,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: { valid: true, resetToken } });
   }
 
-  return NextResponse.json({ success: true, data: { valid: true } });
+  const signupVerificationToken = await issueSignupVerificationToken(parsed.data.email);
+  return NextResponse.json({ success: true, data: { valid: true, signupVerificationToken } });
 }
