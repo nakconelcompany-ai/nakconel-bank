@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword, hashPin, verifyPassword, verifyPin } from '@/lib/crypto';
 import { writeAudit } from '@/lib/audit';
 import { postJournal } from '@/domains/ledger/service';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -17,7 +17,7 @@ function normalizePhone(raw: string): string {
 async function generateAccountNumber(): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
     // Start with 9 (like most Nigerian banks) + 9 random digits
-    const num = '9' + String(Math.floor(Math.random() * 1_000_000_000)).padStart(9, '0');
+    const num = '9' + String(randomInt(0, 1_000_000_000)).padStart(9, '0');
     const existing = await prisma.account.findFirst({ where: { accountNumber: num } });
     if (!existing) return num;
   }
@@ -46,7 +46,9 @@ export async function verifyEmailOtp(email: string, code: string, purpose: 'sign
   const record = await prisma.idempotencyRecord.findUnique({ where: { key } });
   if (!record || record.expiresAt < new Date()) return false;
   const stored = record.response as { codeHash: string; purpose: string };
-  if (stored.codeHash !== hashCode(code)) return false;
+  const expected = Buffer.from(stored.codeHash, 'hex');
+  const supplied = Buffer.from(hashCode(code), 'hex');
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) return false;
   // consume — delete so it can't be reused
   await prisma.idempotencyRecord.delete({ where: { key } }).catch(() => {});
   return true;
