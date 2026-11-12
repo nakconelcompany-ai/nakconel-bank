@@ -37,7 +37,7 @@ const FACE_STAGES = [
   { prompt: 'Slowly turn your head to the left',             hold: 2000 },
   { prompt: 'Now turn your head to the right',               hold: 2000 },
   { prompt: 'Look straight ahead and hold still',            hold: 1800 },
-  { prompt: 'Face verified — you can continue',              hold: 600  },
+  { prompt: 'Selfie captured — identity verification is pending', hold: 600  },
 ] as const;
 
 /* ─── OTP boxes ─── */
@@ -227,9 +227,9 @@ export default function SignupFlow({ onSuccess, onToast, onBack, initialTab = 's
         c.getContext('2d')!.drawImage(v, 0, 0);
         const dataUrl = c.toDataURL('image/jpeg', 0.82);
         setSSelfie(dataUrl);
-        try { localStorage.setItem('nkc_selfie', dataUrl); } catch { /**/ }
+
       }
-      stopCam(); setSFaceDone(true); setSFaceHint('Face verified — you can continue');
+      stopCam(); setSFaceDone(true); setSFaceHint('Selfie captured — identity verification is pending');
     };
 
     run();
