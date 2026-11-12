@@ -482,10 +482,8 @@ export const CURRENCY_FLAG: Record<string, string> = {
   TZS:'🇹🇿', RWF:'🇷🇼', XOF:'🌍', QAR:'🇶🇦', KWD:'🇰🇼', BHD:'🇧🇭',
 };
 
-/** Demo-only name enquiry. Replace with a licensed account-verification provider. */
+/** Account-name enquiry requires a real provider. Never invent recipient names. */
 export async function resolveAccountName(accountNumber: string, _bankCode: string): Promise<string> {
-  await new Promise(resolve => setTimeout(resolve, 600));
-  if (!/^\d{10}$/.test(accountNumber)) throw new Error('Account number must be 10 digits');
-  const names = ['Chinedu Okafor','Adaobi Nwosu','Ibrahim Musa','Funke Adeyemi','Tunde Bakare','Ngozi Eze','Yusuf Bello','Blessing Okoro'];
-  return names[parseInt(accountNumber.slice(-2), 10) % names.length];
+  if (!/^\\d{10}$/.test(accountNumber)) throw new Error('Account number must be 10 digits');
+  throw new Error('Account-name verification is unavailable until a licensed verification provider is connected.');
 }
