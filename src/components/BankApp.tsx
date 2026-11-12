@@ -599,6 +599,28 @@ export default function BankApp() {
     const total  = amt + (amt > 0 ? FEE : 0);
     const isIntl = viewCurrency.code !== 'NGN';
 
+    // Currency switching is display-only until foreign-currency accounts and
+    // licensed payout rails exist. Never send a foreign amount to the NGN API.
+    if (isIntl) return shell(
+      <div>
+        <h2 style={{ marginBottom: 8 }}>International transfers</h2>
+        <div className="glass" style={{ padding: 16 }}>
+          <p style={{ fontWeight: 700, marginBottom: 8 }}>Not available yet</p>
+          <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
+            Your selected currency is currently for balance display and indicative conversion only. International accounts and provider-backed payouts are not connected, so no international transfer can be submitted.
+          </p>
+          <button type="button" className="btn-gold" style={{ marginTop: 14 }}
+            onClick={() => {
+              setViewCurrency({ code: 'NGN', symbol: '₦', rate: 1, flag: '🇳🇬' });
+              setSendBank(''); setSendBankName(''); setSendAcct(''); setSendName(''); setSendAmount('');
+            }}>
+            Return to NGN transfers
+          </button>
+        </div>
+      </div>,
+      { nav: true }
+    );
+
     return shell(
       <div>
         <h2 style={{ marginBottom: 4 }}>Send money</h2>
