@@ -93,6 +93,86 @@ from verified totals, and historical invoices marked PAID display as
 unverified. Review those records before relying on them as provider-verified
 receipts.
 
+## Phase 1–3 implementation status
+
+This status reflects the current repository implementation. A screen or database
+model is not considered a completed banking capability unless the complete
+provider-backed workflow has been implemented and tested.
+
+| Phase | Capability | Current status |
+| --- | --- | --- |
+| 1 — Core foundation | Registration, login, password reset, sessions, PostgreSQL/Prisma | Implemented; security hardening and full integration tests remain |
+| 1 — Core foundation | Ledger and wallet balances | Ledger foundation exists; production reconciliation and independent review remain |
+| 1 — Core foundation | Domestic transfers | Internal Nakconel-to-Nakconel transfer path only; external bank payouts disabled |
+| 1 — Core foundation | Wallet funding | Disabled until verified provider settlement can safely credit the ledger |
+| 1 — Core foundation | KYC | Submission is pending; real identity verification provider and review workflow are not connected |
+| 2 — Business | Business profile, invoices, expenses, team records, analytics | Database-backed basic workflows implemented |
+| 2 — Business | NGN Paystack collections | Test-mode only; production collections and settlement are not enabled |
+| 2 — Business | Payment links and payroll | Disabled pending provider-backed payment and payout workflows |
+| 3 — International | Currency list, indicative conversion display, country and bank directory | UI/catalogue only; entries and transfer support require official verification |
+| 3 — International | FX rates and quote endpoint | Reference-rate estimate only; not a customer dealing rate or executable quote |
+| 3 — International | Foreign-currency accounts and payouts | Not implemented; licensed provider and settlement partners required |
+
+### Safety changes in the phase-1-3-completion branch
+
+- Completed domestic transfers are restricted to active NGN accounts held by
+  Nakconel users. An external bank account is not marked as paid or completed.
+- Wallet top-ups no longer credit a balance when a provider is missing or
+  unavailable.
+- KYC submissions remain pending until an identity verification provider or
+  authorized review confirms them.
+- Signup now requires a single-use token issued after email OTP verification.
+- OTP and reset-token generation use cryptographically secure random values.
+- Production session and encryption secrets must be configured explicitly.
+- International quote calculation awaits its asynchronous rate lookup and
+  refuses to present fallback estimates as a current quote.
+- Face-camera capture in signup is a selfie capture only; it is not biometric
+  identity verification.
+
+### Remaining work before Phases 1–3 can be called complete
+
+**Phase 1**
+- Complete automated tests for registration, OTP, password reset, session
+  expiry, account ownership, ledger posting, reversals, concurrency and
+  idempotency.
+- Add durable distributed rate limiting and OTP attempt limits.
+- Complete wallet funding with persistent pending records, verified provider
+  callbacks, replay protection and atomic ledger posting.
+- Complete account-number allocation with collision handling under concurrent
+  registration.
+- Complete KYC with a verified identity provider and manual review controls.
+- Complete security review, database backup/restore drills and reconciliation.
+
+**Phase 2**
+- Finish invoice lifecycle, due dates, cancellation and concurrency-safe
+  numbering.
+- Complete payment-link lifecycle and public checkout only after provider
+  verification and webhook reconciliation.
+- Add payroll only through an authorized payout provider with approvals,
+  limits and reconciliation.
+- Add production settlement, refunds, disputes and business-level access
+  controls.
+
+**Phase 3**
+- Replace indicative rates with a provider-backed, timestamped quote service
+  that clearly distinguishes reference rates from executable customer rates.
+- Implement real multi-currency account balances and ledger currency isolation.
+- Verify every bank, digital bank and mobile-money directory entry against
+  official regulator/provider records; directory inclusion does not imply
+  payout support.
+- Add account-name lookup, supported bank codes, corridor limits, fees,
+  sanctions/compliance checks and provider-backed payout status.
+- Keep all unverified corridors disabled until provider testing and approval
+  are complete.
+
+### Important production boundary
+
+This repository is a software prototype, not a licensed bank. Do not accept or
+hold customer funds, promise bank-account issuance, or enable real payouts
+without the appropriate regulated financial institution, payment providers,
+approvals, operational controls and independent security review. Never use
+demo/mock providers to represent real settlement.
+
 ## Architecture
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md).
