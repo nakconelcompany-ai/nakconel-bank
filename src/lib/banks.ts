@@ -11,6 +11,7 @@ export type Bank = {
   color: string;
   country: string;
   logoUrl: string;
+  flag?: string;
 };
 
 type BankRow = [code: string, name: string, short: string, color: string, domain: string, country: string];
