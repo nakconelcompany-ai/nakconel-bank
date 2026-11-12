@@ -13,6 +13,9 @@ export async function GET(_req: NextRequest) {
       ON "Account"("accountNumber")
       WHERE "accountNumber" IS NOT NULL;
     `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "role" TEXT NOT NULL DEFAULT 'customer';
+    `);
 
     // Basic DB connectivity check
     const result = await prisma.$queryRaw<[{ now: Date }]>`SELECT NOW() as now`;
