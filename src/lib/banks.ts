@@ -198,9 +198,6 @@ export const INTL_BANKS: Record<string, Bank[]> = {
     ['equityrw','Equity Bank Rwanda','EQT','#E60028','equitybank.co.rw','RW'],
     ['bpr','BPR Bank Rwanda','BPR','#00529B','bpr.rw','RW'],
   ]),
-  US: makeBanks([
-    ['paypal_us','PayPal','PP','#003087','paypal.com','US'],
-  ]),
   CA: makeBanks([
     ['rbc','Royal Bank of Canada','RBC','#005DAA','rbc.com','CA'],
     ['tdca','TD Canada Trust','TD','#54B848','td.com','CA'],
