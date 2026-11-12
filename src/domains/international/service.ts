@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { getRate } from '@/lib/fx';
+import { getFxRates } from '@/lib/fx';
 
 export type CorridorId = 'AFRICA' | 'UK' | 'US' | 'GCC' | 'EUROPE';
 
@@ -118,9 +118,14 @@ export async function quoteInternational(input: {
   if (!country) throw new Error('Country not supported on this corridor');
   if (input.amountNgn < 1000) throw new Error('Minimum send is ₦1,000');
 
-  // Use live rate; fall back to hardcoded corridor base rate
-  const liveFxRate = await getRate(country.currency).catch(() => null);
-  const fxRate = liveFxRate && liveFxRate > 0 ? liveFxRate : (FX_BY_CURRENCY[country.currency] ?? corridor.fxBase);
+  // Quotes must not silently use old hardcoded rates. If live reference
+  // rates are unavailable, fail closed instead of presenting a stale estimate
+  // as a current conversion price.
+  const fx = await getFxRates();
+  const fxRate = fx.rates[country.currency];
+  if (!fx.live || !fxRate || !Number.isFinite(fxRate) || fxRate <= 0) {
+    throw new Error('A current exchange-rate quote is unavailable. Please try again later.');
+  }
 
   const feeNgn = Math.max(corridor.feeMinNgn, Math.round(input.amountNgn * (corridor.feePct / 100)));
   const sendNgn = input.amountNgn;
@@ -140,7 +145,8 @@ export async function quoteInternational(input: {
     fxRate,
     amountForeign,
     settlementDays:  corridor.settlementDays,
-    settlementNote: `CBN-aligned international transfer · ${corridor.label} corridor · settles in ${corridor.settlementDays}`,
+    settlementNote: 'Indicative reference-rate estimate only. International payout is unavailable until a licensed provider is connected.',
+    rateSource: 'LIVE_REFERENCE' as const,
   };
 }
 
