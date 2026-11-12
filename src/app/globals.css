@@ -16,6 +16,54 @@
   --ok: #28774e;
 }
 
+/* ── Dark mode ── */
+[data-theme="dark"] {
+  --bg:          #0f0a0b;
+  --surface:     #1a1012;
+  --surface-soft:#231518;
+  --ink:         #f0e6d8;
+  --muted:       #9a8880;
+  --maroon:      #e06060;
+  --maroon-deep: #3e0c11;
+  --gold:        #d4a843;
+  --gold-bright: #f2d995;
+  --cream:       #1a1012;
+  --border:      #2e1e1e;
+  --danger:      #e06060;
+  --ok:          #4fc878;
+}
+[data-theme="dark"] body { background: var(--bg); color: var(--ink); }
+[data-theme="dark"] .app-shell { background: var(--bg); box-shadow: none; }
+[data-theme="dark"] .glass { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .btn-gold { background: linear-gradient(135deg,#8a2020,#5a1010); }
+[data-theme="dark"] .btn-outline { background: var(--surface); border-color: rgba(224,96,96,.35); }
+[data-theme="dark"] .btn-ghost { background: var(--surface); border-color: var(--border); color: var(--maroon); }
+[data-theme="dark"] input.input, [data-theme="dark"] .input, [data-theme="dark"] select.input {
+  background: #231518 !important; border-color: #3a2020 !important; color: var(--ink) !important;
+}
+[data-theme="dark"] .balance-card { background: linear-gradient(120deg,#1a0808,#2e1010 62%,#3a1515); }
+[data-theme="dark"] .bottom-nav { background: rgba(15,10,11,.97); border-top-color: var(--border); }
+[data-theme="dark"] .desktop-sidebar { background: #120c0d; border-right-color: var(--border); }
+[data-theme="dark"] .sidebar-link:hover { background: #231518; }
+[data-theme="dark"] .sidebar-link.active { background: #2e1518; }
+[data-theme="dark"] .landing-hero { background: linear-gradient(155deg,#1a1012,#231518); border-color: var(--border); }
+[data-theme="dark"] .landing-hero h1 { color: var(--gold-bright); }
+[data-theme="dark"] .quick-action { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .quick-action-icon { background: #2e1518; }
+[data-theme="dark"] .home-shortcut { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .tx-row { border-bottom-color: var(--border); }
+[data-theme="dark"] .activity-card { background: var(--surface); }
+[data-theme="dark"] .tab { color: var(--muted); }
+[data-theme="dark"] .tab.on { background: #2e1518; border-color: #4a2020; color: var(--maroon); }
+[data-theme="dark"] .balance-card::after { border-color: rgba(242,217,149,.1); }
+[data-theme="dark"] .page-title { color: var(--gold-bright); }
+[data-theme="dark"] .card-face { background: linear-gradient(135deg,#1a0808,#2e1010 62%,#3a1515); }
+[data-theme="dark"] .amount-box { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .name-box { background: #231518; border-color: var(--border); }
+[data-theme="dark"] .info-box { background: #1a1012; }
+[data-theme="dark"] .corridor-card { background: var(--surface) !important; }
+[data-theme="dark"] .landing-screen { background: var(--bg); }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {

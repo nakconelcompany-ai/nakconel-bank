@@ -24,6 +24,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="manifest" href="/manifest.json" />
+        {/* Apply dark mode before paint to avoid flash */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            var t = localStorage.getItem('nkc_theme');
+            if (t === 'dark') document.documentElement.setAttribute('data-theme','dark');
+          } catch(e){}
+        ` }} />
       </head>
       <body>{children}</body>
     </html>

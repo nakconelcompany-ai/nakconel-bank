@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   apiBalance, apiLogout, apiSession, type Session, type TxItem,
   apiTransfer, apiTransferHistory, apiTopUp, apiKycStatus, apiKycSubmit,
@@ -11,6 +11,7 @@ import BusinessDemoView from '@/components/BusinessDemoView';
 import SignupFlow from '@/components/SignupFlow';
 import InternationalView from '@/components/InternationalView';
 import { NG_BANKS, getBanksForCurrency, resolveAccountName } from '@/lib/banks';
+import { useTheme } from '@/lib/theme';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconWorld, IconArrowRight,
   IconHistory, IconUser, IconBiz, IconEye, IconEyeOff, IconCard, IconCheck,
@@ -57,6 +58,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BankApp() {
+  const { dark, toggle: toggleTheme } = useTheme();
   const [view, setView]             = useState<View>('landing');
   const [authTab, setAuthTab]       = useState<'login'|'signup'>('login');
   const [session, setSession]       = useState<Session | null>(null);
@@ -82,6 +84,16 @@ export default function BankApp() {
   const [sendNote, setSendNote]     = useState('');
   const [nameLoading, setNameLoading] = useState(false);
   const [bankSearch, setBankSearch] = useState('');
+
+  // selfie update (profile screen)
+  const [updatingSelfie, setUpdatingSelfie] = useState(false);
+  const profileVideoRef  = useRef<HTMLVideoElement | null>(null);
+  const profileCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const profileStreamRef = useRef<MediaStream | null>(null);
+
+  // statement date range
+  const [stmtFrom, setStmtFrom] = useState('');
+  const [stmtTo,   setStmtTo]   = useState('');
 
   // topup
   const [topupAmt, setTopupAmt]     = useState('');
@@ -243,6 +255,10 @@ export default function BankApp() {
             <div className="brand-bank">BANK</div>
           </div>
           <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
+          <button type="button" onClick={toggleTheme} aria-label="Toggle dark mode"
+            style={{ marginLeft: 8, background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 18, padding: '5px 9px', cursor: 'pointer', color: 'var(--gold-bright)', fontSize: 15, lineHeight: 1, flexShrink: 0 }}>
+            {dark ? '☀' : '☾'}
+          </button>
         </header>
         <div className={`app-layout${showNav ? ' has-navigation' : ''}`}>
           {showNav && (
@@ -768,11 +784,27 @@ export default function BankApp() {
         <h2>Transaction history</h2>
         <button
           type="button"
-          onClick={() => window.open('/api/v1/statements', '_blank')}
+          onClick={() => {
+            const params = new URLSearchParams();
+            if (stmtFrom) params.set('from', stmtFrom);
+            if (stmtTo) params.set('to', stmtTo);
+            window.open(`/api/v1/statements${params.toString() ? '?' + params.toString() : ''}`, '_blank');
+          }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: 'var(--maroon)', color: '#fff9eb', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Statement
         </button>
+      </div>
+      {/* Date range filter */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+        <div>
+          <label className="field-label">From</label>
+          <input type="date" className="input" value={stmtFrom} onChange={e => setStmtFrom(e.target.value)} style={{ fontSize: 13, padding: '9px 12px' }} />
+        </div>
+        <div>
+          <label className="field-label">To</label>
+          <input type="date" className="input" value={stmtTo} onChange={e => setStmtTo(e.target.value)} style={{ fontSize: 13, padding: '9px 12px' }} />
+        </div>
       </div>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>All your recent transfers</p>
       {txLoading && txs.length === 0
@@ -931,40 +963,85 @@ export default function BankApp() {
   );
 
   /* ════════ ACCOUNT ════════ */
-  if (view === 'account' && session) return shell(
-    <div>
-      <div style={{ textAlign: 'center', paddingTop: 16, paddingBottom: 24 }}>
-        {(() => {
-          const selfie = typeof localStorage !== 'undefined' ? (() => { try { return localStorage.getItem('nkc_selfie'); } catch { return null; } })() : null;
-          return selfie
-            ? <img src={selfie} alt="Profile" style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', margin: '0 auto 12px', display: 'block' }} />
-            : <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--surface)', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: 'var(--maroon)', margin: '0 auto 12px' }}>{session.fullName.trim()[0]?.toUpperCase()}</div>;
-        })()}
-        <h2 style={{ fontSize: 20, marginBottom: 4 }}>{session.fullName}</h2>
-        <p style={{ fontSize: 13, color: 'var(--muted)' }}>{session.email}</p>
-        {session.phone && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{session.phone}</p>}
-        <div style={{ marginTop: 8 }}><StatusBadge status={session.kycStatus ?? 'NONE'} /></div>
-      </div>
-      <div className="glass" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
-        {[
-          { label: 'Transaction history', action: () => setView('history') },
-          { label: 'Virtual card',        action: () => setView('card') },
-          { label: 'KYC verification',    action: () => setView('kyc') },
-          { label: 'Business banking',    action: () => setView('business') },
-          { label: 'International transfers', action: () => setView('international') },
-        ].map(({ label, action }) => (
-          <button key={label} type="button" onClick={action}
-            style={{ width: '100%', padding: '14px 18px', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, color: 'var(--ink)', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {label} <IconArrowRight size={16} />
-          </button>
-        ))}
-      </div>
-      <button type="button" className="btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(185,69,66,.3)', marginTop: 8 }} onClick={logout}>
-        Sign out
-      </button>
-    </div>,
-    { nav: true }
-  );
+  if (view === 'account' && session) {
+    const selfie = typeof localStorage !== 'undefined' ? (() => { try { return localStorage.getItem('nkc_selfie'); } catch { return null; } })() : null;
+
+    const startCamera = async () => {
+      setUpdatingSelfie(true);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        profileStreamRef.current = stream;
+        if (profileVideoRef.current) { profileVideoRef.current.srcObject = stream; await profileVideoRef.current.play(); }
+      } catch { toast$('Camera permission required'); setUpdatingSelfie(false); }
+    };
+
+    const captureSelfie = () => {
+      const v = profileVideoRef.current; const c = profileCanvasRef.current;
+      if (!v || !c) return;
+      c.width = v.videoWidth || 320; c.height = v.videoHeight || 320;
+      c.getContext('2d')!.drawImage(v, 0, 0);
+      const dataUrl = c.toDataURL('image/jpeg', 0.82);
+      try { localStorage.setItem('nkc_selfie', dataUrl); } catch { /**/ }
+      profileStreamRef.current?.getTracks().forEach(t => t.stop());
+      profileStreamRef.current = null;
+      setUpdatingSelfie(false);
+      toast$('Profile photo updated!');
+      setView('home');
+      setTimeout(() => setView('account'), 50);
+    };
+
+    return shell(
+      <div>
+        <div style={{ textAlign: 'center', paddingTop: 16, paddingBottom: 24 }}>
+          {updatingSelfie ? (
+            <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto 12px' }}>
+              <video ref={profileVideoRef} autoPlay playsInline muted
+                style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', display: 'block' }} />
+              <canvas ref={profileCanvasRef} style={{ display: 'none' }} />
+              <button type="button" onClick={captureSelfie}
+                style={{ position: 'absolute', bottom: 0, right: 0, width: 36, height: 36, borderRadius: '50%', background: 'var(--ok)', border: '2px solid #fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                ✓
+              </button>
+            </div>
+          ) : (
+            <div style={{ position: 'relative', width: 80, height: 80, margin: '0 auto 12px' }}>
+              {selfie
+                ? <img src={selfie} alt="Profile" style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', display: 'block' }} />
+                : <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--surface)', border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: 'var(--maroon)' }}>{session.fullName.trim()[0]?.toUpperCase()}</div>
+              }
+              <button type="button" onClick={startCamera}
+                style={{ position: 'absolute', bottom: -4, right: -4, width: 28, height: 28, borderRadius: '50%', background: 'var(--maroon)', border: '2px solid var(--bg)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                📷
+              </button>
+            </div>
+          )}
+          <h2 style={{ fontSize: 20, marginBottom: 4 }}>{session.fullName}</h2>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>{session.email}</p>
+          {session.phone && <p style={{ fontSize: 13, color: 'var(--muted)' }}>{session.phone}</p>}
+          <div style={{ marginTop: 8 }}><StatusBadge status={session.kycStatus ?? 'NONE'} /></div>
+          {!updatingSelfie && <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>Tap the camera icon to update your photo</p>}
+        </div>
+        <div className="glass" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+          {[
+            { label: 'Transaction history',    action: () => setView('history') },
+            { label: 'Virtual card',           action: () => setView('card') },
+            { label: 'KYC verification',       action: () => setView('kyc') },
+            { label: 'Business banking',       action: () => setView('business') },
+            { label: 'International transfers',action: () => setView('international') },
+          ].map(({ label, action }) => (
+            <button key={label} type="button" onClick={action}
+              style={{ width: '100%', padding: '14px 18px', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 14, color: 'var(--ink)', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {label} <IconArrowRight size={16} />
+            </button>
+          ))}
+        </div>
+        <button type="button" className="btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(185,69,66,.3)', marginTop: 8 }} onClick={logout}>
+          Sign out
+        </button>
+      </div>,
+      { nav: true }
+    );
+  }
 
   return shell(<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading…</div>);
 }
