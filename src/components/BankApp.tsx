@@ -448,17 +448,11 @@ export default function BankApp() {
           viewCurrency.code === 'NGN'
             ? <div className="balance-amount">{balance?.formatted ?? '₦0.00'}</div>
             : <div className="balance-amount">
-                {viewCurrency.flag} {viewCurrency.symbol}{(((balance?.balance ?? 0)) / viewCurrency.rate).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {viewCurrency.symbol}{(((balance?.balance ?? 0)) / viewCurrency.rate).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
         ) : (
           <div className="balance-amount">••••••••</div>
         )}
-        <div className="balance-caption">
-          {viewCurrency.code === 'NGN'
-            ? <>Naira wallet <span>•</span> NGN</>
-            : <>{viewCurrency.flag} {viewCurrency.code} view <span>•</span> <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setViewCurrency({ code: 'NGN', symbol: '₦', rate: 1, flag: '🇳🇬' })}>Reset to NGN</span></>
-          }
-        </div>
         {session.accountNumber && (
           <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,.18)', borderRadius: 10, padding: '8px 12px' }}>
             <div>
@@ -563,14 +557,18 @@ export default function BankApp() {
                 borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
                 transition: 'background .12s',
               }}>
-              {/* Bank logo tile */}
+              {/* Official brand favicon with initials fallback */}
               <div style={{
                 width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                position: 'relative', overflow: 'hidden',
                 background: b.color + '18', border: `1.5px solid ${b.color}33`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: b.flag ? 22 : 12, fontWeight: 800, color: b.color,
+                fontSize: 12, fontWeight: 800, color: b.color,
               }}>
-                {b.flag ? b.flag : b.short.slice(0, 2)}
+                <span>{b.short.slice(0, 2)}</span>
+                <img src={b.logoUrl} alt="" loading="lazy"
+                  onError={e => { e.currentTarget.style.display = 'none'; }}
+                  style={{ position: 'absolute', inset: 5, width: 'calc(100% - 10px)', height: 'calc(100% - 10px)', objectFit: 'contain', background: 'white', borderRadius: 5 }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{b.name}</div>
@@ -623,8 +621,9 @@ export default function BankApp() {
                 const b = getBanksForCurrency(viewCurrency.code).find(x => x.code === sendBank);
                 return b ? (
                   <>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: b.color + '18', border: `1.5px solid ${b.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: b.flag ? 18 : 11, fontWeight: 800, color: b.color }}>
-                      {b.flag ? b.flag : b.short.slice(0, 2)}
+                    <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, position: 'relative', overflow: 'hidden', background: b.color + '18', border: `1.5px solid ${b.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: b.color }}>
+                      <span>{b.short.slice(0, 2)}</span>
+                      <img src={b.logoUrl} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 4, width: 'calc(100% - 8px)', height: 'calc(100% - 8px)', objectFit: 'contain', background: 'white', borderRadius: 5 }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)' }}>{b.name}</div>
