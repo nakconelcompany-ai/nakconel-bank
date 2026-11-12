@@ -7,6 +7,7 @@
  * For password-reset, also verifies the email belongs to an existing account.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { randomInt } from 'node:crypto';
 import { z } from 'zod';
 import { saveEmailOtp } from '@/domains/identity/service';
 import { sendOtpEmail } from '@/lib/brevo';
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Generate a 6-digit code
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(randomInt(100000, 1_000_000));
 
   // Save to DB
   await saveEmailOtp(email, code, purpose);
