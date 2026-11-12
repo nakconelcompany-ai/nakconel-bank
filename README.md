@@ -180,3 +180,23 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md).
 Domains: identity, ledger, transfers, kyc, providers.
 
 **Never commit `.env`** — it contains secrets.
+
+## International payout integration preparation
+
+A server-only Flutterwave sandbox adapter has been added at
+`src/domains/international/flutterwave.ts`. It is deliberately not connected
+to the customer transfer endpoint. The endpoint continues to return HTTP 503,
+so no wallet is debited and no transfer is represented as paid.
+
+The adapter refuses production mode and requires all three conditions:
+`FLW_MODE=sandbox`, `FLW_TRANSFERS_ENABLED=true`, and a test secret beginning
+with `FLWSECK_TEST-`. The enable flag is false by default. Never put provider
+secrets in browser code or variables prefixed with `NEXT_PUBLIC_`.
+
+Before even enabling sandbox tests, provider onboarding and Transfer API access
+must be confirmed by the account owner. Destination bank fields and corridor
+availability must be validated against the provider's current documentation.
+Production payouts require separate legal/compliance approval, approved
+business/provider access, webhook signature verification, reconciliation,
+limits, fraud controls, and an independent security review. Do not switch
+these safeguards off to make a test appear successful.
