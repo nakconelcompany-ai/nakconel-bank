@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const data = quoteSchema.parse(body);
-    const quote = quoteInternational(data);
+    const quote = await quoteInternational(data);
     return NextResponse.json({ success: true, data: quote });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Quote failed';
