@@ -39,6 +39,8 @@ export default function GiftView({ accountId, onToast, onBalanceRefresh }: {
   const [redeeming, setRedeeming] = useState(false);
   const [giftData, setGiftData] = useState<{ sent: any[]; received: any[]; rewards: any } | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const onToastRef = React.useRef(onToast);
+  onToastRef.current = onToast;
   const selectedAmount = useMemo(() => customAmount.trim() ? Number(customAmount.replace(/,/g, '')) : amount, [amount, customAmount]);
   const theme = THEMES[occasion];
 
@@ -48,11 +50,11 @@ export default function GiftView({ accountId, onToast, onBalanceRefresh }: {
     setLoadingHistory(true);
     fetch('/api/v1/gifts').then(r => r.json()).then(json => {
       if (active && json.success) setGiftData(json.data);
-      else if (active) onToast(json.error || 'Could not load gift history.', 'err');
-    }).catch(() => { if (active) onToast('Could not load gift history.', 'err'); })
+      else if (active) onToastRef.current(json.error || 'Could not load gift history.', 'err');
+    }).catch(() => { if (active) onToastRef.current('Could not load gift history.', 'err'); })
       .finally(() => { if (active) setLoadingHistory(false); });
     return () => { active = false; };
-  }, [tab, onToast]);
+  }, [tab]);
 
   async function previewGift() {
     if (!redeemCode.trim()) return onToast('Enter a gift code first.', 'err');
