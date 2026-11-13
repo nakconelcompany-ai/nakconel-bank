@@ -1,459 +1,212 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-interface FinancialInsights {
-  balanceNgn: number;
-  totalSpentNgn: number;
-  transactionCount: number;
-  insights: string[];
-  recommendations: string[];
-}
+import React, { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 
-interface ForecastData {
-  hasBusiness: boolean;
-  businessName?: string;
-  healthStatus?: 'HEALTHY' | 'STABLE' | 'ATTENTION_NEEDED';
-  metrics?: {
-    totalInvoicedNgn: number;
-    unpaidReceivablesNgn: number;
-    overdueReceivablesNgn: number;
-    totalExpensesNgn: number;
-    projected30DayNetCashFlowNgn: number;
-    projected60DayNetCashFlowNgn: number;
-  };
-  aiForecastNotes?: string[];
-  message?: string;
-}
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; time: Date };
+type Insights = { balanceNgn: number; totalSpentNgn: number; transactionCount: number; insights: string[]; recommendations: string[] };
+type Forecast = { hasBusiness: boolean; businessName?: string; message?: string; metrics?: { totalInvoicedNgn: number; unpaidReceivablesNgn: number; overdueReceivablesNgn: number; totalExpensesNgn: number; projected30DayNetCashFlowNgn: number; projected60DayNetCashFlowNgn: number }; aiForecastNotes?: string[] };
+type Fx = { updatedAt: string; recommendations: Array<{ corridor: string; rate: number; marketSignal: string; spreadGrade: string; advice: string }> };
 
-interface FxRec {
-  corridor: string;
-  rate: number;
-  marketSignal: string;
-  spreadGrade: string;
-  advice: string;
-}
+const money = (value: number) => '₦' + value.toLocaleString('en-NG', { maximumFractionDigits: 2 });
+const suggestions = [
+  { label: 'My balance', prompt: 'What is my current balance?', icon: '◉' },
+  { label: 'Spending', prompt: 'How much did I spend in the last 30 days?', icon: '↗' },
+  { label: 'Recent transfers', prompt: 'Show my recent transactions', icon: '⇄' },
+  { label: 'Make a budget', prompt: 'Help me make a monthly budget', icon: '▤' },
+  { label: 'Business cash flow', prompt: 'Explain my business cash flow', icon: '▥' },
+  { label: 'Gift cards', prompt: 'How do Nakconel Gift cards work?', icon: '◇' },
+];
 
-interface FxData {
-  updatedAt: string;
-  recommendations: FxRec[];
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const fmt = (n: number) =>
-  '₦' + n.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-const signalColor: Record<string, string> = {
-  BULLISH: 'text-green-400',
-  FAVORABLE: 'text-green-400',
-  NEUTRAL: 'text-yellow-400',
-  STABLE: 'text-blue-400',
-};
-
-const gradeColor: Record<string, string> = {
-  'A+': 'bg-green-500',
-  A: 'bg-emerald-500',
-  'B+': 'bg-teal-500',
-  B: 'bg-yellow-500',
-};
-
-const healthColor: Record<string, string> = {
-  HEALTHY: 'text-green-400',
-  STABLE: 'text-yellow-400',
-  ATTENTION_NEEDED: 'text-red-400',
-};
-
-type Tab = 'insights' | 'forecast' | 'fx' | 'support';
-
-// ─── Component ───────────────────────────────────────────────────────────────
 export default function AiView() {
-  const [tab, setTab] = useState<Tab>('insights');
+  const [messages, setMessages] = useState<ChatMessage[]>([{
+    id: 'welcome',
+    role: 'assistant',
+    content: 'Hello. I’m Nakconel AI, your banking companion. Ask me about your balance, spending, transfers, budgeting, business cash flow, Gift or currency information. I’ll use the information available in your signed-in Nakconel account.',
+    time: new Date(),
+  }]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [activePanel, setActivePanel] = useState<'chat' | 'insights' | 'forecast' | 'fx'>('chat');
+  const [insights, setInsights] = useState<Insights | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [fx, setFx] = useState<Fx | null>(null);
+  const [panelLoading, setPanelLoading] = useState(false);
+  const [panelError, setPanelError] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Insights
-  const [insights, setInsights] = useState<FinancialInsights | null>(null);
-  const [insightsLoading, setInsightsLoading] = useState(false);
-
-  // Forecast
-  const [forecast, setForecast] = useState<ForecastData | null>(null);
-  const [forecastLoading, setForecastLoading] = useState(false);
-
-  // FX
-  const [fxData, setFxData] = useState<FxData | null>(null);
-  const [fxLoading, setFxLoading] = useState(false);
-
-  // Support
-  const [supportSubject, setSupportSubject] = useState('');
-  const [supportMessage, setSupportMessage] = useState('');
-  const [supportResult, setSupportResult] = useState<{ response: string; ticketId: string; status: string } | null>(null);
-  const [supportLoading, setSupportLoading] = useState(false);
-  const [supportError, setSupportError] = useState('');
-
-  const loadInsights = useCallback(async () => {
-    if (insights) return;
-    setInsightsLoading(true);
-    try {
-      const res = await fetch('/api/v1/ai/insights');
-      if (!res.ok) throw new Error('Failed to load');
-      setInsights(await res.json());
-    } catch {
-      // silent fail — user sees empty state
-    } finally {
-      setInsightsLoading(false);
-    }
-  }, [insights]);
-
-  const loadForecast = useCallback(async () => {
-    if (forecast) return;
-    setForecastLoading(true);
-    try {
-      const res = await fetch('/api/v1/ai/forecast');
-      if (!res.ok) throw new Error('Failed to load');
-      setForecast(await res.json());
-    } catch {
-    } finally {
-      setForecastLoading(false);
-    }
-  }, [forecast]);
-
-  const loadFx = useCallback(async () => {
-    if (fxData) return;
-    setFxLoading(true);
-    try {
-      const res = await fetch('/api/v1/ai/fx');
-      if (!res.ok) throw new Error('Failed to load');
-      setFxData(await res.json());
-    } catch {
-    } finally {
-      setFxLoading(false);
-    }
-  }, [fxData]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, sending]);
 
   useEffect(() => {
-    if (tab === 'insights') loadInsights();
-    if (tab === 'forecast') loadForecast();
-    if (tab === 'fx') loadFx();
-  }, [tab, loadInsights, loadForecast, loadFx]);
+    if (activePanel === 'chat') return;
+    let alive = true;
+    setPanelLoading(true);
+    setPanelError('');
+    const endpoint = activePanel === 'insights' ? '/api/v1/ai/insights' : activePanel === 'forecast' ? '/api/v1/ai/forecast' : '/api/v1/ai/fx';
+    fetch(endpoint).then(async response => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load this information.');
+      if (!alive) return;
+      if (activePanel === 'insights') setInsights(data);
+      if (activePanel === 'forecast') setForecast(data);
+      if (activePanel === 'fx') setFx(data);
+    }).catch(error => { if (alive) setPanelError(error instanceof Error ? error.message : 'Something went wrong.'); })
+      .finally(() => { if (alive) setPanelLoading(false); });
+    return () => { alive = false; };
+  }, [activePanel]);
 
-  const handleSupport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSupportError('');
-    setSupportResult(null);
-    if (!supportSubject.trim() || !supportMessage.trim()) {
-      setSupportError('Subject and message are required.');
-      return;
-    }
-    setSupportLoading(true);
+  async function sendMessage(value = draft) {
+    const text = value.trim();
+    if (!text || sending) return;
+    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, time: new Date() };
+    setMessages(current => [...current, userMessage]);
+    setDraft('');
+    setSending(true);
     try {
-      const res = await fetch('/api/v1/ai/support', {
+      const response = await fetch('/api/v1/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: supportSubject, message: supportMessage }),
+        body: JSON.stringify({ message: text }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed');
-      setSupportResult(data);
-      setSupportSubject('');
-      setSupportMessage('');
-    } catch (err: any) {
-      setSupportError(err.message);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Nakconel AI could not respond.');
+      setMessages(current => [...current, { id: crypto.randomUUID(), role: 'assistant', content: data.reply, time: new Date() }]);
+    } catch (error) {
+      setMessages(current => [...current, { id: crypto.randomUUID(), role: 'assistant', content: error instanceof Error ? error.message : 'Please try again in a moment.', time: new Date() }]);
     } finally {
-      setSupportLoading(false);
+      setSending(false);
+      inputRef.current?.focus();
     }
-  };
+  }
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'insights', label: 'Financial Insights', icon: '📊' },
-    { id: 'forecast', label: 'Business Forecast', icon: '📈' },
-    { id: 'fx', label: 'FX Advisor', icon: '💱' },
-    { id: 'support', label: 'AI Support', icon: '🤖' },
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(); }
+  }
+
+  const nav = [
+    { id: 'chat' as const, label: 'AI Chat', icon: '✳' },
+    { id: 'insights' as const, label: 'Insights', icon: '▥' },
+    { id: 'forecast' as const, label: 'Cash flow', icon: '↗' },
+    { id: 'fx' as const, label: 'FX guide', icon: '⇄' },
   ];
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white mb-1">Nakconel AI</h2>
-        <p className="text-sm text-gray-400">
-          Your intelligent banking assistant — insights, forecasts, FX advisory, and support.
-        </p>
+    <div className="nk-ai-page">
+      <style>{`
+        .nk-ai-page{max-width:1120px;margin:0 auto;color:var(--ink)}
+        .nk-ai-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
+        .nk-ai-kicker{font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+        .nk-ai-title{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-.04em;margin:5px 0}
+        .nk-ai-sub{font-size:13px;color:var(--muted);line-height:1.6;max-width:560px}
+        .nk-ai-status{display:flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:8px 11px;font-size:11px;color:var(--muted);white-space:nowrap}
+        .nk-ai-dot{width:7px;height:7px;border-radius:50%;background:#28774e}
+        .nk-ai-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:stretch}
+        .nk-ai-side{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px;height:max-content}
+        .nk-ai-side-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px 10px}
+        .nk-ai-nav{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:0;border-radius:11px;background:transparent;color:var(--muted);font-size:12px;font-weight:700;text-align:left;cursor:pointer;margin:2px 0}
+        .nk-ai-nav.active{background:rgba(101,23,25,.09);color:var(--maroon)}
+        .nk-ai-nav-icon{display:grid;place-items:center;width:27px;height:27px;border-radius:8px;background:var(--surface-soft);font-size:15px}
+        .nk-ai-note{border-top:1px solid var(--border);margin-top:12px;padding:13px 9px 5px;font-size:10px;line-height:1.6;color:var(--muted)}
+        .nk-ai-main{min-width:0}
+        .nk-ai-chat{height:min(650px,calc(100dvh - 235px));min-height:490px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:20px;background:var(--surface);overflow:hidden;box-shadow:0 8px 30px rgba(62,12,17,.045)}
+        .nk-ai-chatbar{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+        .nk-ai-agent{display:flex;align-items:center;gap:10px;min-width:0}
+        .nk-ai-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:var(--maroon);color:#fff8e9;font-size:20px;font-weight:800}
+        .nk-ai-agent strong{display:block;font-size:13px}.nk-ai-agent small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+        .nk-ai-secure{font-size:10px;color:var(--muted);white-space:nowrap}
+        .nk-ai-messages{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+        .nk-ai-msg{display:flex;gap:9px;max-width:88%;align-items:flex-start}
+        .nk-ai-msg.user{align-self:flex-end;flex-direction:row-reverse}
+        .nk-ai-avatar{width:27px;height:27px;flex:0 0 27px;border-radius:9px;display:grid;place-items:center;background:var(--surface-soft);color:var(--maroon);font-size:12px;font-weight:800}
+        .nk-ai-msg.user .nk-ai-avatar{background:var(--maroon);color:#fff}
+        .nk-ai-bubble{padding:12px 14px;border-radius:4px 15px 15px 15px;background:var(--surface-soft);font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+        .nk-ai-msg.user .nk-ai-bubble{background:var(--maroon);color:#fff8e9;border-radius:15px 4px 15px 15px}
+        .nk-ai-time{font-size:9px;color:var(--muted);margin-top:5px;padding:0 3px}
+        .nk-ai-msg.user .nk-ai-time{text-align:right}
+        .nk-ai-typing{font-size:11px;color:var(--muted);padding:4px 0}
+        .nk-ai-suggestions{padding:0 18px 14px;display:flex;gap:7px;flex-wrap:wrap}
+        .nk-ai-chip{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 11px;font-size:10px;font-weight:700;cursor:pointer}
+        .nk-ai-chip:hover{border-color:var(--gold);color:var(--maroon)}
+        .nk-ai-compose{padding:13px 16px 15px;border-top:1px solid var(--border);background:var(--surface)}
+        .nk-ai-composebox{display:flex;gap:9px;align-items:flex-end;border:1px solid var(--border);border-radius:14px;padding:8px 8px 8px 13px;background:var(--bg)}
+        .nk-ai-composebox textarea{flex:1;min-width:0;resize:none;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;line-height:1.5;max-height:110px;padding:7px 0}
+        .nk-ai-send{width:38px;height:38px;flex:0 0 38px;border:0;border-radius:11px;background:var(--maroon);color:#fff8e9;font-size:17px;cursor:pointer}
+        .nk-ai-send:disabled{opacity:.45;cursor:not-allowed}
+        .nk-ai-disclaimer{text-align:center;font-size:9px;color:var(--muted);margin-top:8px}
+        .nk-ai-panel{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px}
+        .nk-ai-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}
+        .nk-ai-stat{background:var(--surface-soft);border:1px solid var(--border);border-radius:14px;padding:15px;min-width:0}
+        .nk-ai-stat small{display:block;color:var(--muted);font-size:10px}.nk-ai-stat strong{display:block;font-size:18px;margin-top:7px;overflow-wrap:anywhere}
+        .nk-ai-list{padding-left:18px;color:var(--muted);font-size:12px;line-height:1.8}
+        .nk-ai-empty{padding:40px 15px;text-align:center;color:var(--muted);font-size:12px}
+        .nk-ai-error{color:var(--danger);font-size:12px;padding:14px}
+        @media(max-width:760px){.nk-ai-layout{grid-template-columns:1fr}.nk-ai-side{display:flex;overflow:auto;gap:4px;padding:7px}.nk-ai-side-label,.nk-ai-note{display:none}.nk-ai-nav{width:auto;flex:0 0 auto;padding:9px 11px}.nk-ai-nav-icon{display:none}.nk-ai-chat{height:calc(100dvh - 275px);min-height:440px}.nk-ai-msg{max-width:96%}.nk-ai-head{align-items:center}.nk-ai-status{font-size:0;padding:9px}.nk-ai-status .nk-ai-dot{width:8px;height:8px}}
+        @media(max-width:420px){.nk-ai-grid{grid-template-columns:1fr}.nk-ai-messages{padding:14px}.nk-ai-suggestions{padding-inline:12px}.nk-ai-chip{font-size:9px}}
+      `}</style>
+
+      <header className="nk-ai-head">
+        <div>
+          <div className="nk-ai-kicker">Nakconel intelligence</div>
+          <h1 className="nk-ai-title">Your money, understood.</h1>
+          <p className="nk-ai-sub">A clearer view of your finances, with an assistant ready to help you make sense of your Nakconel activity.</p>
+        </div>
+        <div className="nk-ai-status"><span className="nk-ai-dot" /> Account connected</div>
+      </header>
+
+      <div className="nk-ai-layout">
+        <aside className="nk-ai-side">
+          <div className="nk-ai-side-label">Workspace</div>
+          {nav.map(item => <button key={item.id} className={`nk-ai-nav ${activePanel === item.id ? 'active' : ''}`} onClick={() => setActivePanel(item.id)}>
+            <span className="nk-ai-nav-icon">{item.icon}</span>{item.label}
+          </button>)}
+          <div className="nk-ai-note">Your chat uses information available to your signed-in Nakconel account. Never share your PIN, OTP, BVN or NIN in a chat.</div>
+        </aside>
+
+        <main className="nk-ai-main">
+          {activePanel === 'chat' ? <section className="nk-ai-chat">
+            <div className="nk-ai-chatbar">
+              <div className="nk-ai-agent"><div className="nk-ai-mark">✳</div><div><strong>Nakconel Assistant</strong><small>Personal finance & banking help</small></div></div>
+              <span className="nk-ai-secure">Private account session</span>
+            </div>
+            <div className="nk-ai-messages" aria-live="polite">
+              {messages.map(message => <article key={message.id} className={`nk-ai-msg ${message.role}`}>
+                <div className="nk-ai-avatar">{message.role === 'assistant' ? 'N' : 'You'}</div>
+                <div><div className="nk-ai-bubble">{message.content}</div><div className="nk-ai-time">{message.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div></div>
+              </article>)}
+              {sending && <div className="nk-ai-typing">Nakconel AI is preparing a response…</div>}
+              <div ref={bottomRef} />
+            </div>
+            {messages.length <= 1 && <div className="nk-ai-suggestions">{suggestions.map(item => <button className="nk-ai-chip" key={item.label} onClick={() => void sendMessage(item.prompt)}>{item.icon} &nbsp;{item.label}</button>)}</div>}
+            <div className="nk-ai-compose">
+              <div className="nk-ai-composebox">
+                <textarea ref={inputRef} rows={1} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={onKeyDown} placeholder="Ask anything about your Nakconel money…" aria-label="Message Nakconel AI" />
+                <button className="nk-ai-send" disabled={!draft.trim() || sending} onClick={() => void sendMessage()} aria-label="Send message">↑</button>
+              </div>
+              <div className="nk-ai-disclaimer">Enter to send · Shift + Enter for a new line · Financial information is explanatory, not financial advice.</div>
+            </div>
+          </section> : <section className="nk-ai-panel">
+            <div className="nk-ai-kicker">Your financial overview</div>
+            <h2 style={{fontSize:22,fontWeight:800,marginTop:5}}>{activePanel === 'insights' ? 'Spending insights' : activePanel === 'forecast' ? 'Business cash flow' : 'Currency guidance'}</h2>
+            {panelLoading ? <div className="nk-ai-empty">Loading your information…</div> : panelError ? <div className="nk-ai-error">{panelError}</div> : <>
+              {activePanel === 'insights' && insights && <>
+                <div className="nk-ai-grid"><div className="nk-ai-stat"><small>Current NGN balance</small><strong>{money(insights.balanceNgn)}</strong></div><div className="nk-ai-stat"><small>Completed transfer spend · 30 days</small><strong>{money(insights.totalSpentNgn)}</strong></div><div className="nk-ai-stat"><small>Completed transfers</small><strong>{insights.transactionCount}</strong></div></div>
+                <h3 style={{fontSize:13,fontWeight:800,marginBottom:8}}>What we noticed</h3><ul className="nk-ai-list">{insights.insights.map((line,index)=><li key={index}>{line}</li>)}</ul>
+                {insights.recommendations.length>0 && <><h3 style={{fontSize:13,fontWeight:800,margin:'18px 0 8px'}}>Ideas to consider</h3><ul className="nk-ai-list">{insights.recommendations.map((line,index)=><li key={index}>{line}</li>)}</ul></>}
+              </>}
+              {activePanel === 'forecast' && forecast && (forecast.hasBusiness && forecast.metrics ? <>
+                <p className="nk-ai-sub" style={{marginTop:8}}>{forecast.businessName} · modelled from saved business records</p>
+                <div className="nk-ai-grid">{[['Total invoiced',forecast.metrics.totalInvoicedNgn],['Unpaid receivables',forecast.metrics.unpaidReceivablesNgn],['Overdue receivables',forecast.metrics.overdueReceivablesNgn],['Recorded expenses',forecast.metrics.totalExpensesNgn],['30-day projected net',forecast.metrics.projected30DayNetCashFlowNgn],['60-day projected net',forecast.metrics.projected60DayNetCashFlowNgn]].map(([label,value])=><div className="nk-ai-stat" key={String(label)}><small>{label}</small><strong>{money(Number(value))}</strong></div>)}</div>
+                <ul className="nk-ai-list">{(forecast.aiForecastNotes ?? []).map((line,index)=><li key={index}>{line}</li>)}</ul>
+              </> : <div className="nk-ai-empty">{forecast?.message ?? 'No business cash-flow data is available yet.'}</div>)}
+              {activePanel === 'fx' && fx && <>
+                <p className="nk-ai-sub" style={{marginTop:8}}>Indicative reference information · updated {new Date(fx.updatedAt).toLocaleString()}</p>
+                <div className="nk-ai-grid">{fx.recommendations.map(item=><div className="nk-ai-stat" key={item.corridor}><small>{item.corridor} · {item.marketSignal}</small><strong>{money(item.rate)}</strong><p style={{fontSize:11,color:'var(--muted)',lineHeight:1.6,marginTop:7}}>{item.advice}</p></div>)}</div>
+                <p style={{fontSize:11,color:'var(--muted)',lineHeight:1.6}}>These are indicative reference rates, not executable customer quotes or an instruction to make a currency transaction.</p>
+              </>}
+            </>}
+          </section>}
+        </main>
       </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              tab === t.id
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
-            }`}
-          >
-            <span>{t.icon}</span>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Tab: Financial Insights ───────────────────────────────────────── */}
-      {tab === 'insights' && (
-        <div>
-          {insightsLoading ? (
-            <LoadingCard label="Analysing your spending patterns…" />
-          ) : insights ? (
-            <div className="space-y-4">
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 gap-4">
-                <StatCard label="Account Balance" value={fmt(insights.balanceNgn)} color="text-green-400" />
-                <StatCard label="30-day Spend" value={fmt(insights.totalSpentNgn)} color="text-red-400" />
-              </div>
-              <StatCard label="Transfers Completed (30 days)" value={String(insights.transactionCount)} color="text-blue-400" />
-
-              {/* AI Insights */}
-              <SectionCard title="🧠 AI Analysis">
-                <ul className="space-y-2">
-                  {insights.insights.map((s, i) => (
-                    <li key={i} className="text-sm text-gray-300 flex gap-2">
-                      <span className="text-indigo-400 mt-0.5">•</span> {s}
-                    </li>
-                  ))}
-                </ul>
-              </SectionCard>
-
-              {/* Recommendations */}
-              {insights.recommendations.length > 0 && (
-                <SectionCard title="💡 Recommendations">
-                  <ul className="space-y-2">
-                    {insights.recommendations.map((r, i) => (
-                      <li key={i} className="text-sm text-gray-300 flex gap-2">
-                        <span className="text-yellow-400 mt-0.5">→</span> {r}
-                      </li>
-                    ))}
-                  </ul>
-                </SectionCard>
-              )}
-            </div>
-          ) : (
-            <EmptyState icon="📊" label="No spending data available yet. Make your first transfer to activate AI insights." />
-          )}
-        </div>
-      )}
-
-      {/* ── Tab: Business Cash-Flow Forecast ─────────────────────────────── */}
-      {tab === 'forecast' && (
-        <div>
-          {forecastLoading ? (
-            <LoadingCard label="Building your 90-day cash-flow forecast…" />
-          ) : forecast ? (
-            forecast.hasBusiness && forecast.metrics ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-white">{forecast.businessName}</h3>
-                  <span className={`text-sm font-medium ${healthColor[forecast.healthStatus!] ?? 'text-gray-400'}`}>
-                    {forecast.healthStatus?.replace('_', ' ')}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <StatCard label="Total Invoiced" value={fmt(forecast.metrics.totalInvoicedNgn)} color="text-blue-400" />
-                  <StatCard label="Unpaid Receivables" value={fmt(forecast.metrics.unpaidReceivablesNgn)} color="text-yellow-400" />
-                  <StatCard label="Overdue" value={fmt(forecast.metrics.overdueReceivablesNgn)} color="text-red-400" />
-                  <StatCard label="Total Expenses" value={fmt(forecast.metrics.totalExpensesNgn)} color="text-orange-400" />
-                </div>
-
-                <SectionCard title="📅 Cash-Flow Projections">
-                  <div className="space-y-3">
-                    <ProjectionRow label="30-Day Net" value={forecast.metrics.projected30DayNetCashFlowNgn} />
-                    <ProjectionRow label="60-Day Net" value={forecast.metrics.projected60DayNetCashFlowNgn} />
-                  </div>
-                </SectionCard>
-
-                {forecast.aiForecastNotes && forecast.aiForecastNotes.length > 0 && (
-                  <SectionCard title="🤖 AI Forecast Notes">
-                    <ul className="space-y-2">
-                      {forecast.aiForecastNotes.map((n, i) => (
-                        <li key={i} className="text-sm text-gray-300 flex gap-2">
-                          <span className="text-indigo-400 mt-0.5">•</span> {n}
-                        </li>
-                      ))}
-                    </ul>
-                  </SectionCard>
-                )}
-              </div>
-            ) : (
-              <EmptyState icon="📈" label={forecast.message ?? 'Create a business profile to unlock AI cash-flow forecasting.'} />
-            )
-          ) : null}
-        </div>
-      )}
-
-      {/* ── Tab: FX Advisor ───────────────────────────────────────────────── */}
-      {tab === 'fx' && (
-        <div>
-          {fxLoading ? (
-            <LoadingCard label="Loading FX corridor analysis…" />
-          ) : fxData ? (
-            <div className="space-y-4">
-              <p className="text-xs text-gray-500">
-                Reference rates as of {new Date(fxData.updatedAt).toLocaleTimeString()}. For live execution rates, use the International Transfers tab.
-              </p>
-              {fxData.recommendations.map((rec, i) => (
-                <div key={i} className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-white">{rec.corridor}</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full text-white ${gradeColor[rec.spreadGrade] ?? 'bg-gray-600'}`}>
-                        {rec.spreadGrade}
-                      </span>
-                      <span className={`text-xs font-medium ${signalColor[rec.marketSignal] ?? 'text-gray-400'}`}>
-                        {rec.marketSignal}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-lg font-bold text-indigo-300">
-                    1 unit = ₦{rec.rate.toLocaleString()}
-                  </div>
-                  <p className="text-sm text-gray-400">{rec.advice}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState icon="💱" label="FX data unavailable. Please try again shortly." />
-          )}
-        </div>
-      )}
-
-      {/* ── Tab: AI Support ───────────────────────────────────────────────── */}
-      {tab === 'support' && (
-        <div className="space-y-4">
-          {supportResult ? (
-            <div className="bg-indigo-900/40 border border-indigo-500/40 rounded-xl p-5 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🤖</span>
-                <div>
-                  <p className="text-sm font-semibold text-indigo-300">Nakconel AI Support</p>
-                  <p className="text-xs text-gray-500">Ticket #{supportResult.ticketId.slice(0, 8)} · {supportResult.status}</p>
-                </div>
-              </div>
-              <p className="text-sm text-gray-200 leading-relaxed">{supportResult.response}</p>
-              <button
-                onClick={() => setSupportResult(null)}
-                className="text-xs text-indigo-400 hover:underline"
-              >
-                Ask another question →
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSupport} className="space-y-4">
-              <SectionCard title="🤖 AI Customer Support">
-                <p className="text-xs text-gray-400 mb-4">
-                  Describe your issue and our AI will instantly resolve common queries or escalate to our banking operations desk.
-                </p>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Subject</label>
-                    <input
-                      type="text"
-                      value={supportSubject}
-                      onChange={e => setSupportSubject(e.target.value)}
-                      placeholder="e.g. Transfer not received"
-                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
-                      maxLength={100}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Message</label>
-                    <textarea
-                      rows={4}
-                      value={supportMessage}
-                      onChange={e => setSupportMessage(e.target.value)}
-                      placeholder="Tell us what happened…"
-                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 resize-none"
-                      maxLength={500}
-                    />
-                  </div>
-                  {supportError && (
-                    <p className="text-red-400 text-xs">{supportError}</p>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={supportLoading}
-                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    {supportLoading ? 'Connecting to AI…' : 'Submit to AI Support'}
-                  </button>
-                </div>
-              </SectionCard>
-            </form>
-          )}
-
-          {/* Quick topics */}
-          <div>
-            <p className="text-xs text-gray-500 mb-2">Common topics</p>
-            <div className="flex flex-wrap gap-2">
-              {['Transfer delay', 'Gift card redeem', 'KYC limit', 'Reset PIN', 'FX payment'].map(topic => (
-                <button
-                  key={topic}
-                  onClick={() => { setSupportSubject(topic); setSupportResult(null); }}
-                  className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-full transition-colors"
-                >
-                  {topic}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className={`text-xl font-bold ${color}`}>{value}</p>
-    </div>
-  );
-}
-
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4">
-      <p className="text-sm font-semibold text-white mb-3">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-function ProjectionRow({ label, value }: { label: string; value: number }) {
-  const isPositive = value >= 0;
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-sm text-gray-400">{label}</span>
-      <span className={`text-sm font-semibold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-        {isPositive ? '+' : ''}{fmt(value)}
-      </span>
-    </div>
-  );
-}
-
-function LoadingCard({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 gap-3">
-      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      <p className="text-sm text-gray-400">{label}</p>
-    </div>
-  );
-}
-
-function EmptyState({ icon, label }: { icon: string; label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-      <span className="text-4xl">{icon}</span>
-      <p className="text-sm text-gray-400 max-w-xs">{label}</p>
     </div>
   );
 }
