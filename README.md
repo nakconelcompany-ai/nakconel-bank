@@ -173,6 +173,42 @@ without the appropriate regulated financial institution, payment providers,
 approvals, operational controls and independent security review. Never use
 demo/mock providers to represent real settlement.
 
+## Phase 4–5: Gift and AI workspace
+
+The Gift and AI screens have an image-free responsive redesign on the
+`redesign-gift-ai-chat` branch.
+
+### Nakconel Gift
+- Send a gift card with an amount, occasion, sender name and optional recipient details.
+- Preview and redeem a gift code into an eligible active NGN account.
+- View sent gifts, redeemed gifts and reward points.
+- The UI redesign preserves the existing authenticated Gift APIs. Gift purchase
+  and redemption remain internal prototype ledger operations, not merchant
+  reward settlement or a production stored-value product.
+
+### Nakconel AI
+- Conversational chat interface with quick prompts for balance, spending,
+  recent transfers, budgeting, business cash flow, gifts, transfers, FX and
+  account security.
+- The authenticated `POST /api/v1/ai/chat` endpoint scopes account queries to
+  the signed-in user and records a minimal audit event.
+- The current chat responder is deterministic and account-aware
+  (`account-aware-rules`); it is not a generative AI model. A vetted AI provider,
+  privacy review, prompt-injection protections, output controls and cost limits
+  are required before enabling generative responses.
+- Existing insights, business cash-flow and FX overview endpoints remain
+  separate views. FX figures are indicative only; business forecasts are
+  simplified estimates, not guarantees.
+- Never submit a transaction PIN, password, OTP, BVN, NIN or full card details
+  to the assistant. The assistant must not initiate or approve money movement.
+
+### Validation status
+The branch changes have not yet been confirmed by a successful CI run. Run
+`npm install`, `npm test`, `npm run lint` and `npm run build` in a
+configured environment before merging. Test the chat route with authenticated
+and unauthenticated sessions, verify account isolation, and test Gift send,
+preview, redeem and history flows against a non-production database.
+
 ## Architecture
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md).
