@@ -1,6 +1,6 @@
 'use client';
 
-import React, { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
+import React, { KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; time: Date };
 type Insights = { balanceNgn: number; totalSpentNgn: number; transactionCount: number; insights: string[]; recommendations: string[] };
