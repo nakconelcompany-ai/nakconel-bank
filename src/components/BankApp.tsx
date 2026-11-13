@@ -10,6 +10,8 @@ import BusinessView from '@/components/BusinessView';
 import BusinessDemoView from '@/components/BusinessDemoView';
 import SignupFlow from '@/components/SignupFlow';
 import InternationalView from '@/components/InternationalView';
+import GiftView from '@/components/GiftView';
+import AiView from '@/components/AiView';
 import { NG_BANKS, getBanksForCurrency, resolveAccountName } from '@/lib/banks';
 import { useTheme } from '@/lib/theme';
 import {
@@ -20,7 +22,7 @@ import {
 type View =
   | 'landing' | 'auth' | 'home'
   | 'send' | 'bank-picker' | 'receive' | 'topup' | 'history'
-  | 'card' | 'kyc' | 'account'
+  | 'card' | 'kyc' | 'account' | 'gift' | 'ai'
   | 'pin' | 'success'
   | 'business' | 'business-demo' | 'international';
 
@@ -273,11 +275,15 @@ export default function BankApp() {
                     {view === v && <span className="sidebar-current" />}
                   </button>
                 ))}
-                {(['history','card','kyc','topup'] as const).map(v => (
+                {(['history','card','gift','ai','kyc','topup'] as const).map(v => (
                   <button key={v} type="button" onClick={() => setView(v)}
                     className={`sidebar-link${view === v ? ' active' : ''}`}>
-                    {v === 'history' ? <IconHistory size={20} /> : v === 'card' ? <IconCard size={20} /> : v === 'kyc' ? <IconUser size={20} /> : <IconTopUp size={20} />}
-                    <span>{v === 'topup' ? 'Top up' : v.charAt(0).toUpperCase() + v.slice(1)}</span>
+                    {v === 'history' ? <IconHistory size={20} /> : v === 'card' ? <IconCard size={20} /> : v === 'gift' ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+                    ) : v === 'ai' ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+                    ) : v === 'kyc' ? <IconUser size={20} /> : <IconTopUp size={20} />}
+                    <span>{v === 'topup' ? 'Top up' : v === 'gift' ? 'Gift & Rewards' : v === 'ai' ? 'Nakconel AI' : v.charAt(0).toUpperCase() + v.slice(1)}</span>
                     {view === v && <span className="sidebar-current" />}
                   </button>
                 ))}
@@ -372,6 +378,18 @@ export default function BankApp() {
       setView('home');
     }}
   />, { nav: true });
+  if (view === 'gift' && session) return shell(
+    <GiftView
+      accountId={session.accountId}
+      onToast={toast$}
+      onBalanceRefresh={() => { if (session.accountId) refreshBalance(session.accountId); }}
+    />,
+    { nav: true }
+  );
+  if (view === 'ai' && session) return shell(
+    <AiView />,
+    { nav: true }
+  );
 
   /* ════════ PIN GATE ════════ */
   if (view === 'pin') return shell(
@@ -492,6 +510,12 @@ export default function BankApp() {
       </button>
       <button type="button" onClick={() => setView('international')} className="home-shortcut">
         <span><strong>International transfers</strong><br /><small>Send money abroad at competitive rates</small></span><IconArrowRight size={19} />
+      </button>
+      <button type="button" onClick={() => setView('gift')} className="home-shortcut" style={{ background: 'linear-gradient(135deg,rgba(101,23,25,.05),rgba(197,155,68,.08))', borderColor: 'rgba(197,155,68,.3)' }}>
+        <span><strong>Nakconel Gift & Rewards</strong><br /><small>Send digital gift cards, earn cashback & reward points</small></span><IconArrowRight size={19} />
+      </button>
+      <button type="button" onClick={() => setView('ai')} className="home-shortcut" style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.08),rgba(99,102,241,.05))', borderColor: 'rgba(99,102,241,.35)' }}>
+        <span><strong>Nakconel AI</strong><br /><small>Smart insights, cash-flow forecasts & FX advisory</small></span><IconArrowRight size={19} />
       </button>
 
       <h2 className="section-heading">Recent activity</h2>

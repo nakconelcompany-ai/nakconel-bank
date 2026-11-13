@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createTransfer } from '@/domains/transfers/service';
 import { verifyUserPin } from '@/domains/identity/service';
+import { assessTransactionRisk } from '@/domains/ai/service';
 import { withIdempotency } from '@/lib/idempotency';
 import { toKobo } from '@/lib/money';
 import { getAuthenticatedUserId } from '@/lib/session';
@@ -41,6 +42,24 @@ export async function POST(req: NextRequest) {
   const pinOk = await verifyUserPin(userId, parsed.data.pin);
   if (!pinOk) {
     return NextResponse.json({ success: false, error: 'Invalid PIN.' }, { status: 403 });
+  }
+
+  // AI Fraud Detection & Transaction Risk Assessment
+  const riskAssessment = await assessTransactionRisk({
+    userId,
+    action: 'TRANSFER',
+    amountKobo: toKobo(parsed.data.amount),
+    ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
+    userAgent: req.headers.get('user-agent') ?? undefined,
+  });
+
+  if (!riskAssessment.allowed) {
+    return NextResponse.json({
+      success: false,
+      error: 'Transaction flagged and blocked by AI security monitoring. Please contact support.',
+      riskScore: riskAssessment.riskScore,
+      factors: riskAssessment.factors,
+    }, { status: 403 });
   }
 
   try {

@@ -319,3 +319,124 @@ model InternationalTransfer {
   @@index([corridor])
   @@index([status])
 }
+
+// -------------------------------------------------------------
+// Phase 4: Nakconel Gift Models
+// -------------------------------------------------------------
+
+enum GiftCardStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+  CANCELLED
+}
+
+enum GiftOccasion {
+  GENERAL
+  BIRTHDAY
+  CONGRATULATIONS
+  THANK_YOU
+  WEDDING
+  HOLIDAY
+  BUSINESS_BONUS
+}
+
+model GiftCard {
+  id               String          @id @default(uuid())
+  codeHash         String          @unique
+  codeMasked       String          // e.g. "NKC-****-****-38F2"
+  currency         String          @default("NGN")
+  amount           Int             // in kobo
+  balance          Int             // remaining in kobo
+  status           GiftCardStatus  @default(ACTIVE)
+  occasion         GiftOccasion    @default(GENERAL)
+  message          String?
+  senderName       String?
+  recipientEmail   String?
+  recipientPhone   String?
+  creatorUserId    String?
+  businessId       String?
+  redeemedByUserId String?
+  expiresAt        DateTime
+  redeemedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  redemptions      GiftRedemption[]
+
+  @@index([status])
+  @@index([creatorUserId])
+  @@index([businessId])
+  @@index([recipientEmail])
+}
+
+model GiftRedemption {
+  id          String   @id @default(uuid())
+  giftCardId  String
+  giftCard    GiftCard @relation(fields: [giftCardId], references: [id])
+  userId      String
+  amount      Int      // kobo
+  accountId   String
+  journalId   String?
+  createdAt   DateTime @default(now())
+
+  @@index([giftCardId])
+  @@index([userId])
+}
+
+model RewardAccount {
+  id             String        @id @default(uuid())
+  userId         String        @unique
+  pointsBalance  Int           @default(0)
+  lifetimeEarned Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  entries        RewardEntry[]
+}
+
+model RewardEntry {
+  id              String        @id @default(uuid())
+  rewardAccountId String
+  rewardAccount   RewardAccount @relation(fields: [rewardAccountId], references: [id])
+  points          Int           // positive (earned) or negative (redeemed)
+  description     String
+  reference       String?
+  createdAt       DateTime      @default(now())
+
+  @@index([rewardAccountId])
+}
+
+// -------------------------------------------------------------
+// Phase 5: Nakconel AI Models
+// -------------------------------------------------------------
+
+model AiRiskAssessment {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String   // "LOGIN", "TRANSFER", "GIFTCARD_PURCHASE"
+  riskScore   Int      // 0 to 100
+  riskLevel   String   // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  factors     Json     // list of detected factors
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([riskLevel])
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  userId      String
+  subject     String
+  category    String
+  status      String   @default("OPEN") // "OPEN", "AI_RESOLVED", "ESCALATED"
+  summary     String?
+  aiResponse  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+

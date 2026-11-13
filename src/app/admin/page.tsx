@@ -35,11 +35,14 @@ export default async function AdminPage() {
     redirect('/admin/login');
   }
 
-  const [users, transfers, kycSubs, businesses] = await Promise.all([
+  const [users, transfers, kycSubs, businesses, giftCards, riskFlags, supportTickets] = await Promise.all([
     prisma.user.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
     prisma.transfer.findMany({ orderBy:{ createdAt:'desc' }, take:200 }),
     prisma.kycSubmission.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ user:{ select:{ fullName:true, email:true } } } }),
     prisma.businessProfile.findMany({ orderBy:{ createdAt:'desc' }, take:50, include:{ user:{ select:{ fullName:true, email:true } } } }),
+    (prisma as any).giftCard.findMany({ orderBy:{ createdAt:'desc' }, take:50 }),
+    (prisma as any).aiRiskAssessment.findMany({ where: { riskLevel: { in: ['HIGH', 'CRITICAL'] } }, orderBy: { createdAt: 'desc' }, take: 50 }),
+    (prisma as any).supportTicket.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
   ]);
 
   const totalUsers     = users.length;
@@ -185,6 +188,70 @@ export default async function AdminPage() {
                     <tr key={b.id}>
                       {td(b.businessName)}{td(b.user.fullName)}{td(b.user.email)}
                       {td(b.businessType)}{td(<StatusPill s={b.status} />)}{td(fmtDate(b.createdAt))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+          </Section>
+
+          {/* Gift Cards & Incentives */}
+          <Section title="Nakconel Gift Cards & Rewards" count={giftCards.length}>
+            {giftCards.length === 0 ? <div className="empty">No gift cards issued yet</div> : (
+              <div className="wrap"><table>
+                <thead><tr>{[th('Code'),th('Occasion'),th('Amount'),th('Balance'),th('Status'),th('Created'),th('Expires')]}</tr></thead>
+                <tbody>
+                  {giftCards.map((g: any) => (
+                    <tr key={g.id}>
+                      {td(<span style={{ fontFamily:'monospace', fontWeight:700 }}>{g.codeMasked}</span>)}
+                      {td(g.occasion)}
+                      {td(fmt(g.amount), true)}
+                      {td(fmt(g.balance), true)}
+                      {td(<StatusPill s={g.status} />)}
+                      {td(fmtDate(g.createdAt))}
+                      {td(fmtDate(g.expiresAt))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+          </Section>
+
+          {/* AI Risk Flags & Fraud Monitoring */}
+          <Section title="AI Fraud Risk Flags (High / Critical)" count={riskFlags.length}>
+            {riskFlags.length === 0 ? <div className="empty">No high or critical risk alerts detected</div> : (
+              <div className="wrap"><table>
+                <thead><tr>{[th('Action'),th('Risk Score'),th('Risk Level'),th('Factors'),th('User ID'),th('IP / Agent'),th('Timestamp')]}</tr></thead>
+                <tbody>
+                  {riskFlags.map((r: any) => (
+                    <tr key={r.id}>
+                      {td(r.action)}
+                      {td(<span style={{ fontWeight: 700, color: r.riskScore >= 80 ? '#b94542' : '#a07820' }}>{r.riskScore}/100</span>)}
+                      {td(<StatusPill s={r.riskLevel} />)}
+                      {td(Array.isArray(r.factors) ? r.factors.join(', ') : 'None')}
+                      {td(<span style={{ fontFamily:'monospace', fontSize:11 }}>{r.userId.slice(0, 10)}…</span>)}
+                      {td(r.ipAddress || r.userAgent ? `${r.ipAddress || ''} ${r.userAgent || ''}`.slice(0, 30) : '—')}
+                      {td(fmtDateTime(r.createdAt))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+          </Section>
+
+          {/* Support Tickets & AI Resolution */}
+          <Section title="Customer Support Tickets (AI Assisted)" count={supportTickets.length}>
+            {supportTickets.length === 0 ? <div className="empty">No support tickets submitted</div> : (
+              <div className="wrap"><table>
+                <thead><tr>{[th('Subject'),th('Category'),th('Status'),th('AI Response'),th('Created')]}</tr></thead>
+                <tbody>
+                  {supportTickets.map((s: any) => (
+                    <tr key={s.id}>
+                      {td(<strong>{s.subject}</strong>)}
+                      {td(s.category)}
+                      {td(<StatusPill s={s.status} />)}
+                      {td(<span style={{ fontSize: 12, color: '#555' }}>{(s.aiResponse || '—').slice(0, 80)}…</span>)}
+                      {td(fmtDateTime(s.createdAt))}
                     </tr>
                   ))}
                 </tbody>

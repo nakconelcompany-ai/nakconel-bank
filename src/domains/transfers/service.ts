@@ -31,7 +31,7 @@ export async function createTransfer(input: {
   const fee = DEFAULT_FEE_KOBO;
   const total = input.amountKobo + fee;
 
-  const completed = await prisma.$transaction(async (tx) => {
+  const completed = await prisma.$transaction(async (tx: any) => {
     const replay = await tx.transfer.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
     if (replay) return replay;
 
