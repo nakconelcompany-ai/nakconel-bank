@@ -70,12 +70,8 @@ export default async function AdminPage() {
   );
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="UTF-8"/>
-        <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-        <title>Nakconel Bank — Admin Dashboard</title>
-        <style>{`
+    <>
+      <style>{`
           *{box-sizing:border-box;margin:0;padding:0;}
           body{font-family:'DM Sans',system-ui,sans-serif;background:#f5efe4;color:#271817;font-size:14px;}
           table{width:100%;border-collapse:collapse;}
@@ -89,8 +85,7 @@ export default async function AdminPage() {
           .tab-btn.active{background:#651719;border-color:#651719;color:#fff9eb;}
           @media(max-width:800px){.stats{grid-template-columns:1fr 1fr!important;}.content{padding:14px 10px!important;}}
         `}</style>
-      </head>
-      <body>
+      <div className="admin-page">
         {/* Header */}
         <div style={{ background:'linear-gradient(110deg,#3e0c11,#651719 66%,#4a1015)', color:'#fff8e9', padding:'14px 32px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky' as const, top:0, zIndex:10, borderBottom:'2px solid #c59b44' }}>
           <div>
@@ -260,7 +255,7 @@ export default async function AdminPage() {
           </Section>
 
         </div>
-      </body>
-    </html>
+      </div>
+    </>
   );
 }
