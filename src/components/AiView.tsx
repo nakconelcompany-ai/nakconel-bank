@@ -18,7 +18,7 @@ const suggestions = [
   { label: 'Gift cards', prompt: 'How do Nakconel Gift cards work?', icon: '◇' },
 ];
 
-export default function AiView({ userId, dark, onToggleTheme }: { userId: string; dark: boolean; onToggleTheme: () => void }) {
+export default function AiView({ userId, dark, onSetTheme }: { userId: string; dark: boolean; onSetTheme: (theme: 'light' | 'dark') => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: 'welcome',
     role: 'assistant',
@@ -138,15 +138,15 @@ export default function AiView({ userId, dark, onToggleTheme }: { userId: string
   return (
     <div className="nk-ai-page">
       <style>{`
-        .nk-ai-page{max-width:1120px;margin:0 auto;color:var(--ink)}
+        .nk-ai-page{max-width:1280px;margin:0 auto;color:var(--ink)}
         .nk-ai-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}
         .nk-ai-kicker{font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
         .nk-ai-title{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-.04em;margin:5px 0}
         .nk-ai-sub{font-size:13px;color:var(--muted);line-height:1.6;max-width:560px}
         .nk-ai-status{display:flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:8px 11px;font-size:11px;color:var(--muted);white-space:nowrap}
         .nk-ai-dot{width:7px;height:7px;border-radius:50%;background:#28774e}
-        .nk-ai-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:stretch}
-        .nk-ai-side{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px;height:max-content}
+        .nk-ai-layout{display:grid;grid-template-columns:244px minmax(0,1fr);gap:18px;align-items:stretch}
+        .nk-ai-side{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:14px;height:max-content;position:sticky;top:16px;box-shadow:0 10px 30px rgba(62,12,17,.035)}
         .nk-ai-side-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px 10px}
         .nk-ai-history-head{display:flex;align-items:center;justify-content:space-between;margin-top:12px;border-top:1px solid var(--border);padding-top:8px}
         .nk-ai-new{border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--maroon);font-size:10px;font-weight:800;padding:6px 8px;cursor:pointer}
@@ -166,18 +166,18 @@ export default function AiView({ userId, dark, onToggleTheme }: { userId: string
         .nk-ai-setting-action{border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--ink);padding:9px 12px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
         .nk-ai-setting-action.primary{background:var(--maroon);color:#fff8e9;border-color:var(--maroon)}
         .nk-ai-main{min-width:0}
-        .nk-ai-chat{height:min(650px,calc(100dvh - 235px));min-height:490px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:20px;background:var(--surface);overflow:hidden;box-shadow:0 8px 30px rgba(62,12,17,.045)}
-        .nk-ai-chatbar{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+        .nk-ai-chat{height:min(720px,calc(100dvh - 210px));min-height:520px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:20px;background:var(--surface);overflow:hidden;box-shadow:0 8px 30px rgba(62,12,17,.045)}
+        .nk-ai-chatbar{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
         .nk-ai-agent{display:flex;align-items:center;gap:10px;min-width:0}
         .nk-ai-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:var(--maroon);color:#fff8e9;font-size:20px;font-weight:800}
         .nk-ai-agent strong{display:block;font-size:13px}.nk-ai-agent small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
         .nk-ai-secure{font-size:10px;color:var(--muted);white-space:nowrap}
-        .nk-ai-messages{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+        .nk-ai-messages{flex:1;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:16px}
         .nk-ai-msg{display:flex;gap:9px;max-width:88%;align-items:flex-start}
         .nk-ai-msg.user{align-self:flex-end;flex-direction:row-reverse}
         .nk-ai-avatar{width:27px;height:27px;flex:0 0 27px;border-radius:9px;display:grid;place-items:center;background:var(--surface-soft);color:var(--maroon);font-size:12px;font-weight:800}
         .nk-ai-msg.user .nk-ai-avatar{background:var(--maroon);color:#fff}
-        .nk-ai-bubble{padding:12px 14px;border-radius:4px 15px 15px 15px;background:var(--surface-soft);font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+        .nk-ai-bubble{padding:13px 16px;border-radius:4px 15px 15px 15px;background:var(--surface-soft);font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
         .nk-ai-msg.user .nk-ai-bubble{background:var(--maroon);color:#fff8e9;border-radius:15px 4px 15px 15px}
         .nk-ai-time{font-size:9px;color:var(--muted);margin-top:5px;padding:0 3px}
         .nk-ai-msg.user .nk-ai-time{text-align:right}
@@ -185,7 +185,7 @@ export default function AiView({ userId, dark, onToggleTheme }: { userId: string
         .nk-ai-suggestions{padding:0 18px 14px;display:flex;gap:7px;flex-wrap:wrap}
         .nk-ai-chip{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 11px;font-size:10px;font-weight:700;cursor:pointer}
         .nk-ai-chip:hover{border-color:var(--gold);color:var(--maroon)}
-        .nk-ai-compose{padding:13px 16px 15px;border-top:1px solid var(--border);background:var(--surface)}
+        .nk-ai-compose{padding:15px 18px 17px;border-top:1px solid var(--border);background:var(--surface)}
         .nk-ai-composebox{display:flex;gap:9px;align-items:flex-end;border:1px solid var(--border);border-radius:14px;padding:8px 8px 8px 13px;background:var(--bg)}
         .nk-ai-composebox textarea{flex:1;min-width:0;resize:none;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;line-height:1.5;max-height:110px;padding:7px 0}
         .nk-ai-send{width:38px;height:38px;flex:0 0 38px;border:0;border-radius:11px;background:var(--maroon);color:#fff8e9;font-size:17px;cursor:pointer}
@@ -198,7 +198,7 @@ export default function AiView({ userId, dark, onToggleTheme }: { userId: string
         .nk-ai-list{padding-left:18px;color:var(--muted);font-size:12px;line-height:1.8}
         .nk-ai-empty{padding:40px 15px;text-align:center;color:var(--muted);font-size:12px}
         .nk-ai-error{color:var(--danger);font-size:12px;padding:14px}
-        @media(max-width:760px){.nk-ai-layout{grid-template-columns:1fr}.nk-ai-side{display:flex;overflow:auto;gap:4px;padding:7px}.nk-ai-side-label,.nk-ai-note{display:none}.nk-ai-nav{width:auto;flex:0 0 auto;padding:9px 11px}.nk-ai-history-head{width:100%;margin-top:5px}.nk-ai-history-head .nk-ai-side-label{display:block}.nk-ai-history-list{width:100%;max-height:110px;flex-direction:row;overflow:auto}.nk-ai-history-item{width:190px;flex:0 0 190px;background:var(--bg)}.nk-ai-nav-icon{display:none}.nk-ai-chat{height:calc(100dvh - 275px);min-height:440px}.nk-ai-msg{max-width:96%}.nk-ai-head{align-items:center}.nk-ai-status{font-size:0;padding:9px}.nk-ai-status .nk-ai-dot{width:8px;height:8px}}
+        @media(max-width:760px){.nk-ai-layout{grid-template-columns:1fr}.nk-ai-side{position:static}.nk-ai-side{display:flex;overflow:auto;gap:4px;padding:7px}.nk-ai-side-label,.nk-ai-note{display:none}.nk-ai-nav{width:auto;flex:0 0 auto;padding:9px 11px}.nk-ai-history-head{width:100%;margin-top:5px}.nk-ai-history-head .nk-ai-side-label{display:block}.nk-ai-history-list{width:100%;max-height:110px;flex-direction:row;overflow:auto}.nk-ai-history-item{width:190px;flex:0 0 190px;background:var(--bg)}.nk-ai-nav-icon{display:none}.nk-ai-chat{height:calc(100dvh - 275px);min-height:440px}.nk-ai-msg{max-width:96%}.nk-ai-head{align-items:center}.nk-ai-status{font-size:0;padding:9px}.nk-ai-status .nk-ai-dot{width:8px;height:8px}}
         @media(max-width:420px){.nk-ai-grid{grid-template-columns:1fr}.nk-ai-messages{padding:14px}.nk-ai-suggestions{padding-inline:12px}.nk-ai-chip{font-size:9px}}
       `}</style>
 
@@ -228,7 +228,7 @@ export default function AiView({ userId, dark, onToggleTheme }: { userId: string
         <main className="nk-ai-main">
           {activePanel === 'settings' ? <section className="nk-ai-panel">
             <div className="nk-ai-kicker">Preferences</div><h2 style={{fontSize:22,fontWeight:800,marginTop:5}}>AI settings</h2><p className="nk-ai-sub" style={{marginTop:7}}>Manage how your Nakconel AI workspace looks and how its local chat history is stored.</p>
-            <div className="nk-ai-setting-option"><div className="nk-ai-setting-label"><strong>Appearance</strong><small>Choose the theme used across the banking app.</small></div><button type="button" className="nk-ai-setting-action primary" onClick={onToggleTheme}>{dark ? 'Switch to light' : 'Switch to dark'}</button></div>
+            <div className="nk-ai-setting-option"><div className="nk-ai-setting-label"><strong>Appearance</strong><small>Choose the theme used across the banking app.</small></div><div style={{display:'flex',gap:7,flexWrap:'wrap'}}><button type="button" aria-pressed={!dark} className={'nk-ai-setting-action '+(!dark?'primary':'')} onClick={()=>onSetTheme('light')}>☀ Light</button><button type="button" aria-pressed={dark} className={'nk-ai-setting-action '+(dark?'primary':'')} onClick={()=>onSetTheme('dark')}>☾ Dark</button></div></div>
             <div className="nk-ai-setting-option"><div className="nk-ai-setting-label"><strong>Chat history</strong><small>{conversations.length} saved conversations on this browser for this signed-in profile.</small></div><button type="button" className="nk-ai-setting-action" onClick={() => { try { localStorage.removeItem(historyKey); } catch {} setConversations([]); startNewChat(); }}>Clear history</button></div>
             <div className="nk-ai-setting-option"><div className="nk-ai-setting-label"><strong>Privacy reminder</strong><small>Never enter your transaction PIN, password, OTP, BVN, NIN or full card details into a chat.</small></div><span style={{fontSize:11,color:'var(--ok)',fontWeight:800}}>Protected</span></div>
             <p className="nk-ai-disclaimer" style={{textAlign:'left',marginTop:16}}>Chat history is stored in this browser, not synchronised across devices. AI explanations do not initiate or approve payments.</p>
