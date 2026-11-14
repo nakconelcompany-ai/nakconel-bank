@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { loginUser } from '@/domains/identity/service';
-import { hasSameOriginRequest, setAdminSessionCookie } from '@/lib/session';
+import { clearSessionCookie, hasSameOriginRequest, setAdminSessionCookie } from '@/lib/session';
 import { sendLoginAlertEmail } from '@/lib/brevo';
 
 const schema = z.object({
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = NextResponse.json({ success: true, data: { id: user.id, email: user.email, fullName: user.fullName, role: user.role } });
+    clearSessionCookie(response);
     setAdminSessionCookie(response, user.id);
 
     // Fire login alert (non-blocking)
