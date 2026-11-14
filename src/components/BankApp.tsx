@@ -16,7 +16,7 @@ import { NG_BANKS, getBanksForCurrency, resolveAccountName } from '@/lib/banks';
 import { useTheme } from '@/lib/theme';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconWorld, IconArrowRight,
-  IconHistory, IconUser, IconBiz, IconEye, IconEyeOff, IconCard, IconCheck,
+  IconHistory, IconUser, IconBiz, IconEye, IconEyeOff, IconCard, IconCheck, IconGift, IconSparkles,
 } from '@/components/Icons';
 
 type View =
@@ -506,12 +506,26 @@ export default function BankApp() {
       <button type="button" onClick={() => setView('international')} className="home-shortcut">
         <span><strong>International transfers</strong><br /><small>Send money abroad at competitive rates</small></span><IconArrowRight size={19} />
       </button>
-      <button type="button" onClick={() => setView('gift')} className="home-shortcut" style={{ background: 'linear-gradient(135deg,rgba(101,23,25,.05),rgba(197,155,68,.08))', borderColor: 'rgba(197,155,68,.3)' }}>
-        <span><strong>Nakconel Gift & Rewards</strong><br /><small>Send digital gift cards, earn cashback & reward points</small></span><IconArrowRight size={19} />
-      </button>
-      <button type="button" onClick={() => setView('ai')} className="home-shortcut" style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.08),rgba(99,102,241,.05))', borderColor: 'rgba(99,102,241,.35)' }}>
-        <span><strong>Nakconel AI</strong><br /><small>Smart insights, cash-flow forecasts & FX advisory</small></span><IconArrowRight size={19} />
-      </button>
+      <section className="home-feature-grid" aria-label="Explore Nakconel features">
+        <button type="button" onClick={() => setView('gift')} className="home-feature-card home-feature-gift">
+          <span className="home-feature-icon"><IconGift size={23} /></span>
+          <span className="home-feature-copy">
+            <strong>Nakconel Gift</strong>
+            <small>Send digital gifts and explore rewards</small>
+            <span className="home-feature-link">Explore gifts <IconArrowRight size={14} /></span>
+          </span>
+          <span className="home-feature-arrow"><IconArrowRight size={17} /></span>
+        </button>
+        <button type="button" onClick={() => setView('ai')} className="home-feature-card home-feature-ai">
+          <span className="home-feature-icon"><IconSparkles size={23} /></span>
+          <span className="home-feature-copy">
+            <strong>Nakconel AI</strong>
+            <small>Ask questions about spending and your money</small>
+            <span className="home-feature-link">Chat with AI <IconArrowRight size={14} /></span>
+          </span>
+          <span className="home-feature-arrow"><IconArrowRight size={17} /></span>
+        </button>
+      </section>
 
       <h2 className="section-heading">Recent activity</h2>
       <section className="glass activity-card">
