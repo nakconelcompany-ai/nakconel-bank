@@ -202,8 +202,8 @@ export async function loginUser(emailOrPhone: string, password: string) {
     phone:         user.phone ?? undefined,
     role:          user.role ?? 'customer',
     kycStatus:     user.kycStatus,
-    accountId:     user.accounts[0]?.id,
-    accountNumber: user.accounts[0]?.accountNumber ?? undefined,
+    accountId:     ['owner', 'admin', 'support', 'system'].includes(user.role ?? 'customer') ? undefined : user.accounts[0]?.id,
+    accountNumber: ['owner', 'admin', 'support', 'system'].includes(user.role ?? 'customer') ? undefined : user.accounts[0]?.accountNumber ?? undefined,
   };
 }
 
