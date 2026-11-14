@@ -1,9 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function AdminLoginPage() {
-  const router   = useRouter();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr]           = useState('');
@@ -20,7 +18,7 @@ export default function AdminLoginPage() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) { setErr(json.error ?? 'Login failed'); return; }
-      router.push('/admin');
+      window.location.assign('/admin');
     } catch {
       setErr('Could not connect. Please try again.');
     } finally { setLoading(false); }
