@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { hashPassword, hashPin, verifyPassword, verifyPin } from '@/lib/crypto';
 import { writeAudit } from '@/lib/audit';
-import { postJournal } from '@/domains/ledger/service';
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -232,11 +231,18 @@ export async function changePin(userId: string, oldPin: string, newPin: string) 
   await writeAudit({ userId, action: 'PIN_CHANGED', resource: 'user', resourceId: userId });
 }
 
-export async function topUpAccount(input: {
+/**
+ * Direct wallet credits are disabled. A future funding flow must first create
+ * a pending provider transaction and credit the ledger only after a verified,
+ * authenticated and idempotent provider settlement callback.
+ */
+export async function topUpAccount(_input: {
   userId: string;
   accountId: string;
   amountKobo: number;
   reference: string;
+}) {
+  throw new Error('Wallet funding is unavailable until verified provider settlement is connected.');
 }) {
   if (input.amountKobo < 10000) throw new Error('Minimum top-up is ₦100');
   const account = await prisma.account.findFirst({ where: { id: input.accountId, userId: input.userId } });
