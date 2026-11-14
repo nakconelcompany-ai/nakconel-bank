@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const user = await loginUser(parsed.data.email, parsed.data.password);
+    if (user.role === 'owner' || user.role === 'admin' || user.role === 'support') {
+      return NextResponse.json({ success: false, error: 'This is an administration account. Sign in through the admin portal.' }, { status: 403 });
+    }
     const response = NextResponse.json({ success: true, data: user });
     setSessionCookie(response, user.id);
 
