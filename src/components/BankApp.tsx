@@ -384,7 +384,7 @@ export default function BankApp() {
     { nav: true }
   );
   if (view === 'ai' && session) return shell(
-    <AiView />,
+    <AiView userId={session.id} />,
     { nav: true }
   );
 
