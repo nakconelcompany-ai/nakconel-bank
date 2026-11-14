@@ -321,7 +321,7 @@ export async function redeemGiftCard(input: RedeemGiftCardInput) {
       giftCard: updatedCard,
       redemption,
     };
-  });
+  }, { isolationLevel: 'Serializable' });
 }
 
 /**
