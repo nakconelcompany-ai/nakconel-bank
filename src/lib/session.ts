@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { NextRequest, NextResponse } from 'next/server';
 
 const SESSION_COOKIE = 'nakconel_session';
+const ADMIN_SESSION_COOKIE = 'nakconel_admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
 type SessionPayload = {
@@ -60,6 +61,26 @@ export function setSessionCookie(response: NextResponse, userId: string) {
     sameSite: 'lax',
     path: '/',
     maxAge: SESSION_TTL_SECONDS,
+  });
+}
+
+export function setAdminSessionCookie(response: NextResponse, userId: string) {
+  response.cookies.set(ADMIN_SESSION_COOKIE, createSessionToken(userId), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SESSION_TTL_SECONDS,
+  });
+}
+
+export function clearAdminSessionCookie(response: NextResponse) {
+  response.cookies.set(ADMIN_SESSION_COOKIE, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
   });
 }
 
