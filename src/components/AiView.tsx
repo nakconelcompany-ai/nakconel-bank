@@ -18,7 +18,7 @@ const suggestions = [
   { label: 'Gift cards', prompt: 'How do Nakconel Gift cards work?', icon: '◇' },
 ];
 
-export default function AiView({ userId }: { userId: string }) {
+export default function AiView({ userId, dark, onToggleTheme }: { userId: string; dark: boolean; onToggleTheme: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: 'welcome',
     role: 'assistant',
@@ -30,7 +30,7 @@ export default function AiView({ userId }: { userId: string }) {
   const [conversations, setConversations] = useState<SavedChat[]>([]);
   const [historyReady, setHistoryReady] = useState(false);
   const [sending, setSending] = useState(false);
-  const [activePanel, setActivePanel] = useState<'chat' | 'insights' | 'forecast' | 'fx'>('chat');
+  const [activePanel, setActivePanel] = useState<'chat' | 'insights' | 'forecast' | 'fx' | 'settings'>('chat');
   const [insights, setInsights] = useState<Insights | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [fx, setFx] = useState<Fx | null>(null);
@@ -83,7 +83,7 @@ export default function AiView({ userId }: { userId: string }) {
   }
 
   useEffect(() => {
-    if (activePanel === 'chat') return;
+    if (activePanel === 'chat' || activePanel === 'settings') return;
     let alive = true;
     setPanelLoading(true);
     setPanelError('');
@@ -159,6 +159,12 @@ export default function AiView({ userId }: { userId: string }) {
         .nk-ai-nav.active{background:rgba(101,23,25,.09);color:var(--maroon)}
         .nk-ai-nav-icon{display:grid;place-items:center;width:27px;height:27px;border-radius:8px;background:var(--surface-soft);font-size:15px}
         .nk-ai-note{border-top:1px solid var(--border);margin-top:12px;padding:13px 9px 5px;font-size:10px;line-height:1.6;color:var(--muted)}
+        .nk-ai-side-settings{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+        .nk-ai-setting-option{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
+        .nk-ai-setting-option:last-child{border-bottom:0}
+        .nk-ai-setting-label strong{display:block;font-size:12px}.nk-ai-setting-label small{display:block;color:var(--muted);font-size:10px;line-height:1.5;margin-top:4px}
+        .nk-ai-setting-action{border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--ink);padding:9px 12px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+        .nk-ai-setting-action.primary{background:var(--maroon);color:#fff8e9;border-color:var(--maroon)}
         .nk-ai-main{min-width:0}
         .nk-ai-chat{height:min(650px,calc(100dvh - 235px));min-height:490px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:20px;background:var(--surface);overflow:hidden;box-shadow:0 8px 30px rgba(62,12,17,.045)}
         .nk-ai-chatbar{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -216,10 +222,17 @@ export default function AiView({ userId }: { userId: string }) {
             {conversations.length === 0 ? <p className="nk-ai-history-empty">Your conversations will appear here.</p> : conversations.map(chat => <button type="button" key={chat.id} className={'nk-ai-history-item ' + (activeConversationId === chat.id && activePanel === 'chat' ? 'active' : '')} onClick={() => openConversation(chat)}><span>◌</span><span>{chat.title}</span></button>)}
           </div>
           <div className="nk-ai-note">Your chat uses information available to your signed-in Nakconel account. Never share your PIN, OTP, BVN or NIN in a chat.</div>
+          <div className="nk-ai-side-settings"><button type="button" className={`nk-ai-nav ${activePanel === 'settings' ? 'active' : ''}`} onClick={() => setActivePanel('settings')}><span className="nk-ai-nav-icon">⚙</span>Settings</button></div>
         </aside>
 
         <main className="nk-ai-main">
-          {activePanel === 'chat' ? <section className="nk-ai-chat">
+          {activePanel === 'settings' ? <section className="nk-ai-panel">
+            <div className="nk-ai-kicker">Preferences</div><h2 style={{fontSize:22,fontWeight:800,marginTop:5}}>AI settings</h2><p className="nk-ai-sub" style={{marginTop:7}}>Manage how your Nakconel AI workspace looks and how its local chat history is stored.</p>
+            <div className="nk-ai-setting-option"><div className="nk-ai-setting-label"><strong>Appearance</strong><small>Choose the theme used across the banking app.</small></div><button type="button" className="nk-ai-setting-action primary" onClick={onToggleTheme}>{dark ? 'Switch to light' : 'Switch to dark'}</button></div>
+            <div className="nk-ai-setting-option"><div className="nk-ai-setting-label"><strong>Chat history</strong><small>{conversations.length} saved conversations on this browser for this signed-in profile.</small></div><button type="button" className="nk-ai-setting-action" onClick={() => { try { localStorage.removeItem(historyKey); } catch {} setConversations([]); startNewChat(); }}>Clear history</button></div>
+            <div className="nk-ai-setting-option"><div className="nk-ai-setting-label"><strong>Privacy reminder</strong><small>Never enter your transaction PIN, password, OTP, BVN, NIN or full card details into a chat.</small></div><span style={{fontSize:11,color:'var(--ok)',fontWeight:800}}>Protected</span></div>
+            <p className="nk-ai-disclaimer" style={{textAlign:'left',marginTop:16}}>Chat history is stored in this browser, not synchronised across devices. AI explanations do not initiate or approve payments.</p>
+          </section> : activePanel === 'chat' ? <section className="nk-ai-chat">
             <div className="nk-ai-chatbar">
               <div className="nk-ai-agent"><div className="nk-ai-mark">✳</div><div><strong>Nakconel Assistant</strong><small>Personal finance & banking help</small></div></div>
               <span className="nk-ai-secure">Private account session</span>
