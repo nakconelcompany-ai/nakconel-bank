@@ -157,3 +157,21 @@ export function IconArrowRight({ size = 18, color = 'currentColor', className }:
     </>
   ), className);
 }
+
+export function IconGift({ size = 22, color = 'currentColor', className }: IconProps) {
+  return wrap(size, color, (
+    <>
+      <rect x="3" y="10" width="18" height="11" rx="1.8" stroke={color} strokeWidth="1.8" />
+      <path d="M12 10v11M3 14h18M12 10H7.8a2.3 2.3 0 110-4.6C10 5.4 12 10 12 10zm0 0h4.2a2.3 2.3 0 100-4.6C14 5.4 12 10 12 10z" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ), className);
+}
+
+export function IconSparkles({ size = 22, color = 'currentColor', className }: IconProps) {
+  return wrap(size, color, (
+    <>
+      <path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3z" stroke={color} strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15zM5 2l.7 2.3L8 5l-2.3.7L5 8l-.7-2.3L2 5l2.3-.7L5 2z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    </>
+  ), className);
+}
