@@ -60,7 +60,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BankApp() {
-  const { dark, toggle: toggleTheme } = useTheme();
+  const { dark, setTheme } = useTheme();
   const [view, setView]             = useState<View>('landing');
   const [authTab, setAuthTab]       = useState<'login'|'signup'>('login');
   const [session, setSession]       = useState<Session | null>(null);
@@ -382,7 +382,7 @@ export default function BankApp() {
     { nav: true }
   );
   if (view === 'ai' && session) return shell(
-    <AiView userId={session.id} dark={dark} onToggleTheme={toggleTheme} />,
+    <AiView userId={session.id} dark={dark} onSetTheme={setTheme} />,
     { nav: true }
   );
 
@@ -774,9 +774,9 @@ export default function BankApp() {
       <section className="glass" style={{ padding: 20, marginBottom: 14 }}>
         <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 5 }}>Appearance</h2>
         <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 16 }}>Choose the theme used across Nakconel Bank.</p>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" className={dark ? 'btn-ghost' : 'btn-gold'} onClick={() => { if (dark) toggleTheme(); }} aria-pressed={!dark}>☀ Light theme</button>
-          <button type="button" className={dark ? 'btn-gold' : 'btn-ghost'} onClick={() => { if (!dark) toggleTheme(); }} aria-pressed={dark}>☾ Dark theme</button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          <button type="button" className={!dark ? 'btn-gold' : 'btn-ghost'} onClick={() => setTheme('light')} aria-pressed={!dark}>☀ Light theme</button>
+          <button type="button" className={dark ? 'btn-gold' : 'btn-ghost'} onClick={() => setTheme('dark')} aria-pressed={dark}>☾ Dark theme</button>
         </div>
       </section>
       <section className="glass" style={{ padding: 20 }}>
