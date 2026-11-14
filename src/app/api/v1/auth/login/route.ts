@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { loginUser } from '@/domains/identity/service';
-import { clearAdminSessionCookie, hasSameOriginRequest, setSessionCookie } from '@/lib/session';
+import { hasSameOriginRequest, setSessionCookie } from '@/lib/session';
 import { sendLoginAlertEmail } from '@/lib/brevo';
 
 const schema = z.object({
@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'This is an administration account. Sign in through the admin portal.' }, { status: 403 });
     }
     const response = NextResponse.json({ success: true, data: user });
-    clearAdminSessionCookie(response);
     setSessionCookie(response, user.id);
 
     // Fire login alert email (non-blocking — don't await)
