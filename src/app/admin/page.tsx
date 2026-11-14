@@ -36,7 +36,7 @@ export default async function AdminPage() {
   }
 
   const [users, transfers, kycSubs, businesses, giftCards, riskFlags, supportTickets, customerAccounts] = await Promise.all([
-    prisma.user.findMany({ where:{ role:{ notIn:['owner','admin','support'] } }, orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
+    prisma.user.findMany({ where:{ role:{ notIn:['owner','admin','support','system'] } }, orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
     prisma.transfer.findMany({ orderBy:{ createdAt:'desc' }, take:200 }),
     prisma.kycSubmission.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ user:{ select:{ fullName:true, email:true } } } }),
     prisma.businessProfile.findMany({ orderBy:{ createdAt:'desc' }, take:50, include:{ user:{ select:{ fullName:true, email:true } } } }),
