@@ -43,6 +43,7 @@ export default async function AdminPage() {
     (prisma as any).giftCard.findMany({ orderBy:{ createdAt:'desc' }, take:50 }),
     (prisma as any).aiRiskAssessment.findMany({ where: { riskLevel: { in: ['HIGH', 'CRITICAL'] } }, orderBy: { createdAt: 'desc' }, take: 50 }),
     (prisma as any).supportTicket.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+    prisma.account.findMany({ where: { accountNumber: { not: 'GIFT_POOL_NGN' }, user: { role: { not: 'system' } } }, select: { id: true, accountNumber: true, status: true, user: { select: { fullName: true, email: true, role: true } } }, take: 1000 }),
   ]);
 
   const accountIds = customerAccounts.map((account: { id: string }) => account.id);
@@ -52,7 +53,7 @@ export default async function AdminPage() {
   ]) : [[], []];
   const creditsByAccount = new Map(creditGroups.map((entry: { creditAccountId: string; _sum: { amount: number | null } }) => [entry.creditAccountId, entry._sum.amount ?? 0]));
   const debitsByAccount = new Map(debitGroups.map((entry: { debitAccountId: string; _sum: { amount: number | null } }) => [entry.debitAccountId, entry._sum.amount ?? 0]));
-  const negativeBalances = customerAccounts.map((account: { id: string; accountNumber: string | null; user: { fullName: string; email: string } }) => ({
+  const negativeBalances = customerAccounts.map((account: { id: string; accountNumber: string | null; status: string; user: { fullName: string; email: string; role: string } }) => ({
     ...account,
     balanceKobo: (creditsByAccount.get(account.id) ?? 0) - (debitsByAccount.get(account.id) ?? 0),
   })).filter((account: { balanceKobo: number }) => account.balanceKobo < 0);
@@ -131,13 +132,13 @@ export default async function AdminPage() {
           </div>
 
           <Section title="Negative balance review" count={negativeBalances.length}>
-            {negativeBalances.length === 0 ? <div className="empty">No negative balances found in the active customer accounts checked.</div> : (
+            {negativeBalances.length === 0 ? <div className="empty">No negative balances found in the accounts checked.</div> : (
               <div className="wrap"><table>
-                <thead><tr>{[th('Customer'),th('Email'),th('Account'),th('Ledger balance'),th('Review status')]}</tr></thead>
+                <thead><tr>{[th('Account holder'),th('Email'),th('Role / status'),th('Account'),th('Ledger balance'),th('Review status')]}</tr></thead>
                 <tbody>
-                  {negativeBalances.map((account: { id: string; accountNumber: string | null; user: { fullName: string; email: string }; balanceKobo: number }) => (
+                  {negativeBalances.map((account: { id: string; accountNumber: string | null; status: string; user: { fullName: string; email: string; role: string }; balanceKobo: number }) => (
                     <tr key={account.id}>
-                      {td(account.user.fullName)}{td(account.user.email)}{td(account.accountNumber ?? '—')}
+                      {td(account.user.fullName)}{td(account.user.email)}{td(`${account.user.role} / ${account.status}`)}{td(account.accountNumber ?? '—')}
                       {td(fmt(account.balanceKobo), true)}
                       {td(<StatusPill s="REQUIRES_REVIEW" />)}
                     </tr>
