@@ -154,7 +154,7 @@ export default function BankApp() {
     const u = new URL(window.location.href);
     const p = u.searchParams.get('payment');
     if (!p) return;
-    if (p === 'completed') toast$('Payment return received. Checking verified payment status…');
+    if (p === 'completed') toast$('Returned from the payment page. Check transaction history for the verified payment status.');
     else if (p === 'pending') toast$('Payment is pending provider confirmation. Your balance has not been updated yet.');
     else toast$('Payment was not completed.');
     ['payment','ref','accountId'].forEach(k => u.searchParams.delete(k));
@@ -242,6 +242,7 @@ export default function BankApp() {
       ['business', 'Biz', IconBiz],
       ['international', 'Global', IconWorld],
       ['account', 'Me', IconUser],
+      ['settings', 'Settings', IconUser],
     ] as const;
     const showNav = Boolean(opts?.nav && session);
 
@@ -283,7 +284,6 @@ export default function BankApp() {
                     {view === v && <span className="sidebar-current" />}
                   </button>
                 ))}
-                <button type="button" onClick={() => setView('settings')} className={`sidebar-link${view === 'settings' ? ' active' : ''}`}><span aria-hidden="true">⚙</span><span>Settings</span>{view === 'settings' && <span className="sidebar-current" />}</button>
               </nav>
               <div className="sidebar-account">
                 {selfie
