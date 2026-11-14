@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   apiBalance, apiLogout, apiSession, type Session, type TxItem,
-  apiTransfer, apiTransferHistory, apiTopUp, apiKycStatus, apiKycSubmit,
+  apiTransfer, apiTransferHistory, apiKycStatus, apiKycSubmit,
 } from '@/lib/api';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
@@ -98,8 +98,6 @@ export default function BankApp() {
   const [stmtTo,   setStmtTo]   = useState('');
 
   // topup
-  const [topupAmt, setTopupAmt]     = useState('');
-  const [topupLoading, setTopupLoading] = useState(false);
 
   // kyc
   const [kycStatus, setKycStatus]   = useState<string | null>(null);
@@ -793,44 +791,20 @@ export default function BankApp() {
 
   /* ════════ TOP UP ════════ */
   if (view === 'topup' && session) return shell(
-    <div>
-      <h2 style={{ marginBottom: 4 }}>Top up wallet</h2>
-      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Add money to your Nakconel wallet</p>
-      <label className="field-label">Amount (₦)</label>
-      <div className="amount-box" style={{ marginBottom: 16 }}>
-        <span className="currency">₦</span>
-        <input value={topupAmt} onChange={e => setTopupAmt(e.target.value)} placeholder="0.00"
-          inputMode="decimal" style={{ border: 'none', background: 'transparent', color: 'var(--ink)', fontSize: 22, fontWeight: 700, padding: '12px 10px', width: '100%', outline: 'none' }} />
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[500, 1000, 2000, 5000, 10000].map(a => (
-          <button key={a} type="button" className="btn-ghost" style={{ flex: 'none', padding: '8px 14px', fontSize: 13 }}
-            onClick={() => setTopupAmt(String(a))}>₦{a.toLocaleString()}</button>
-        ))}
-      </div>
-      <button type="button" className="btn-gold"
-        disabled={topupLoading || !topupAmt || parseFloat(topupAmt) < 100 || !session.accountId}
-        onClick={async () => {
-          if (!session.accountId) return;
-          setTopupLoading(true);
-          try {
-            const r = await apiTopUp(session.accountId, parseFloat(topupAmt));
-            if (r.mode === 'paystack' && r.authorizationUrl) {
-              window.location.href = r.authorizationUrl;
-            } else {
-              toast$(r.message ?? 'Wallet credited!');
-              setTopupAmt('');
-              refreshBalance(session.accountId);
-              setView('home');
-            }
-          } catch (e: unknown) {
-            toast$(e instanceof Error ? e.message : 'Top-up failed');
-          } finally { setTopupLoading(false); }
-        }}>
-        {topupLoading ? 'Processing…' : `Add ${topupAmt ? fmt(parseFloat(topupAmt)) : '₦0'} to wallet`}
-      </button>
-      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5, textAlign: 'center' }}>
-        Wallet funding is temporarily unavailable. Your balance changes only after a payment provider confirms settlement.
+    <div style={{ maxWidth: 560, margin: '0 auto' }}>
+      <h2 style={{ marginBottom: 4 }}>Add money to wallet</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Wallet funding is temporarily unavailable.</p>
+      <section className="glass" style={{ padding: 20, borderColor: 'var(--border)' }}>
+        <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 7 }}>Funding status</div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7 }}>
+          Nakconel has not yet connected a verified payment-settlement flow for wallet funding. No top-up will be submitted and no balance will be changed from this screen.
+        </p>
+        <button type="button" className="btn-gold" disabled style={{ width: '100%', marginTop: 18, opacity: .55, cursor: 'not-allowed' }}>
+          Top-up unavailable
+        </button>
+      </section>
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14, lineHeight: 1.6 }}>
+        Your displayed balance comes from posted ledger entries. If it looks incorrect, contact the authorised support team for a ledger review; do not attempt repeated top-ups.
       </p>
     </div>,
     { nav: true }
