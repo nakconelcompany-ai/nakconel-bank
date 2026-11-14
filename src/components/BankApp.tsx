@@ -22,7 +22,7 @@ import {
 type View =
   | 'landing' | 'auth' | 'home'
   | 'send' | 'bank-picker' | 'receive' | 'topup' | 'history'
-  | 'card' | 'kyc' | 'account' | 'gift' | 'ai'
+  | 'card' | 'kyc' | 'account' | 'gift' | 'ai' | 'settings'
   | 'pin' | 'success'
   | 'business' | 'business-demo' | 'international';
 
@@ -154,8 +154,8 @@ export default function BankApp() {
     const u = new URL(window.location.href);
     const p = u.searchParams.get('payment');
     if (!p) return;
-    if (p === 'completed') toast$('Payment received. Wallet credited!');
-    else if (p === 'pending') toast$('Payment pending — wallet will be credited shortly.');
+    if (p === 'completed') toast$('Payment return received. Checking verified payment status…');
+    else if (p === 'pending') toast$('Payment is pending provider confirmation. Your balance has not been updated yet.');
     else toast$('Payment was not completed.');
     ['payment','ref','accountId'].forEach(k => u.searchParams.delete(k));
     window.history.replaceState({}, '', u);
@@ -257,10 +257,6 @@ export default function BankApp() {
             <div className="brand-bank">BANK</div>
           </div>
           <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
-          <button type="button" onClick={toggleTheme} aria-label="Toggle dark mode"
-            style={{ marginLeft: 8, background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 18, padding: '5px 9px', cursor: 'pointer', color: 'var(--gold-bright)', fontSize: 15, lineHeight: 1, flexShrink: 0 }}>
-            {dark ? '☀' : '☾'}
-          </button>
         </header>
         <div className={`app-layout${showNav ? ' has-navigation' : ''}`}>
           {showNav && (
@@ -287,6 +283,7 @@ export default function BankApp() {
                     {view === v && <span className="sidebar-current" />}
                   </button>
                 ))}
+                <button type="button" onClick={() => setView('settings')} className={`sidebar-link${view === 'settings' ? ' active' : ''}`}><span aria-hidden="true">⚙</span><span>Settings</span>{view === 'settings' && <span className="sidebar-current" />}</button>
               </nav>
               <div className="sidebar-account">
                 {selfie
@@ -770,6 +767,30 @@ export default function BankApp() {
     { nav: true }
   );
 
+  /* ════════ SETTINGS ════════ */
+  if (view === 'settings' && session) return shell(
+    <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <p className="eyebrow">PREFERENCES</p>
+      <h1 style={{ fontSize: 27, fontWeight: 800, margin: '5px 0 8px' }}>Settings</h1>
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 22 }}>Manage your appearance and account preferences.</p>
+      <section className="glass" style={{ padding: 20, marginBottom: 14 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 5 }}>Appearance</h2>
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 16 }}>Choose the theme used across Nakconel Bank.</p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" className={dark ? 'btn-ghost' : 'btn-gold'} onClick={() => { if (dark) toggleTheme(); }} aria-pressed={!dark}>☀ Light theme</button>
+          <button type="button" className={dark ? 'btn-gold' : 'btn-ghost'} onClick={() => { if (!dark) toggleTheme(); }} aria-pressed={dark}>☾ Dark theme</button>
+        </div>
+      </section>
+      <section className="glass" style={{ padding: 20 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Account preferences</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--muted)', fontSize: 12 }}>Signed in as</span><strong style={{ fontSize: 12 }}>{session.fullName}</strong></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 0' }}><span style={{ color: 'var(--muted)', fontSize: 12 }}>Email</span><strong style={{ fontSize: 12 }}>{session.email}</strong></div>
+      </section>
+      <button type="button" className="btn-ghost" style={{ marginTop: 14 }} onClick={() => setView('account')}>Profile & personal details →</button>
+    </div>,
+    { nav: true }
+  );
+
   /* ════════ TOP UP ════════ */
   if (view === 'topup' && session) return shell(
     <div>
@@ -809,7 +830,7 @@ export default function BankApp() {
         {topupLoading ? 'Processing…' : `Add ${topupAmt ? fmt(parseFloat(topupAmt)) : '₦0'} to wallet`}
       </button>
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5, textAlign: 'center' }}>
-        Demo mode: top-ups are credited immediately without a payment provider.
+        Wallet funding is temporarily unavailable. Your balance changes only after a payment provider confirms settlement.
       </p>
     </div>,
     { nav: true }
