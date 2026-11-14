@@ -382,7 +382,7 @@ export default function BankApp() {
     { nav: true }
   );
   if (view === 'ai' && session) return shell(
-    <AiView userId={session.id} />,
+    <AiView userId={session.id} dark={dark} onToggleTheme={toggleTheme} />,
     { nav: true }
   );
 
