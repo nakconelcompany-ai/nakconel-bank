@@ -175,7 +175,7 @@ export async function purchaseGiftCard(input: PurchaseGiftCardInput) {
     }
 
     return created;
-  });
+  }, { isolationLevel: 'Serializable' });
 
   return {
     giftCard: card,
@@ -265,7 +265,7 @@ export async function redeemGiftCard(input: RedeemGiftCardInput) {
           reference: `GIFT-REDEEM-${card.id.slice(0, 8)}`,
         },
       ],
-    });
+    }, tx);
 
     // 2. Mark gift card redeemed
     const updatedCard = await tx.giftCard.update({
