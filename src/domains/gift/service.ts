@@ -113,6 +113,23 @@ export async function purchaseGiftCard(input: PurchaseGiftCardInput) {
   const card = await (prisma as any).$transaction(async (tx: any) => {
     // If user funded, post double-entry ledger debit to pool
     if (debitAccountId && input.creatorUserId) {
+      // Check the available ledger balance inside the same database transaction.
+      // This prevents Gift purchases from creating an overdraft.
+      const [credits, debits] = await Promise.all([
+        tx.ledgerEntry.aggregate({
+          where: { creditAccountId: debitAccountId, status: 'POSTED', currency: 'NGN' },
+          _sum: { amount: true },
+        }),
+        tx.ledgerEntry.aggregate({
+          where: { debitAccountId, status: 'POSTED', currency: 'NGN' },
+          _sum: { amount: true },
+        }),
+      ]);
+      const availableBalance = (credits._sum.amount ?? 0) - (debits._sum.amount ?? 0);
+      if (availableBalance < input.amountKobo) {
+        throw new Error('Insufficient balance. Gift cards can only be purchased with available funds.');
+      }
+
       const poolAccountId = await getOrCreateGiftPoolAccount(tx);
       await postJournal({
         description: `Gift Card Purchase - ${input.occasion || 'GENERAL'}`,
@@ -124,7 +141,7 @@ export async function purchaseGiftCard(input: PurchaseGiftCardInput) {
             reference: `GIFT-PURCHASE-${rawCode.replace(/-/g, '')}`,
           },
         ],
-      });
+      }, tx);
     }
 
     const created = await tx.giftCard.create({
