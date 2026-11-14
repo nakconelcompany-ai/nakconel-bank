@@ -241,28 +241,6 @@ export async function topUpAccount(_input: {
   accountId: string;
   amountKobo: number;
   reference: string;
-}) {
+}): Promise<never> {
   throw new Error('Wallet funding is unavailable until verified provider settlement is connected.');
-}) {
-  if (input.amountKobo < 10000) throw new Error('Minimum top-up is ₦100');
-  const account = await prisma.account.findFirst({ where: { id: input.accountId, userId: input.userId } });
-  if (!account) throw new Error('Account not found');
-
-  const journal = await postJournal({
-    description: 'Wallet top-up',
-    entries: [{
-      debitAccountId:  'funding:nakconel',
-      creditAccountId: input.accountId,
-      amount:          input.amountKobo,
-      reference:       input.reference,
-    }],
-  });
-
-  await writeAudit({
-    userId: input.userId, action: 'TOPUP_COMPLETED',
-    resource: 'account', resourceId: input.accountId,
-    meta: { amount: input.amountKobo, journalId: journal.id },
-  });
-
-  return journal;
 }
