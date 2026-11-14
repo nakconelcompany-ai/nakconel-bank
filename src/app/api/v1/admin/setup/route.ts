@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Keep immutable ledger entries for audit; disable any legacy customer accounts.
     await prisma.account.updateMany({
-      where: { userId: user.id },
+      where: { userId: user.id, accountNumber: { not: 'GIFT_POOL_NGN' } },
       data: { status: 'CLOSED', accountNumber: null },
     });
 
