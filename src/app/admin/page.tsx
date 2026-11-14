@@ -26,7 +26,7 @@ function StatusPill({ s }: { s: string }) {
 export default async function AdminPage() {
   // Auth check
   const cookieStore = await cookies();
-  const token  = cookieStore.get('nakconel_session')?.value;
+  const token  = cookieStore.get('nakconel_admin_session')?.value;
   const userId = token ? verifySessionToken(token) : null;
   if (!userId) redirect('/admin/login');
 
@@ -36,7 +36,7 @@ export default async function AdminPage() {
   }
 
   const [users, transfers, kycSubs, businesses, giftCards, riskFlags, supportTickets] = await Promise.all([
-    prisma.user.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
+    prisma.user.findMany({ where:{ role:{ notIn:['owner','admin','support'] } }, orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
     prisma.transfer.findMany({ orderBy:{ createdAt:'desc' }, take:200 }),
     prisma.kycSubmission.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ user:{ select:{ fullName:true, email:true } } } }),
     prisma.businessProfile.findMany({ orderBy:{ createdAt:'desc' }, take:50, include:{ user:{ select:{ fullName:true, email:true } } } }),
@@ -99,7 +99,7 @@ export default async function AdminPage() {
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <a href="/" style={{ color:'#f2d995', fontSize:12, fontWeight:700, textDecoration:'none', border:'1px solid rgba(242,217,149,.3)', padding:'6px 14px', borderRadius:8 }}>← App</a>
-            <form action="/api/v1/auth/logout" method="POST" style={{ display:'inline' }}>
+            <form action="/api/v1/admin/logout" method="POST" style={{ display:'inline' }}>
               <button type="submit" style={{ color:'#f2d995', fontSize:12, fontWeight:700, border:'1px solid rgba(242,217,149,.3)', padding:'6px 14px', borderRadius:8, background:'transparent', cursor:'pointer' }}>Sign out</button>
             </form>
           </div>
