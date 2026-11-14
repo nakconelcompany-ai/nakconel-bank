@@ -1,4 +1,5 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { hashPassword, hashPin } from '@/lib/crypto';
 import { prisma } from '@/lib/prisma';
 import { postJournal } from '@/domains/ledger/service';
 import { writeAudit } from '@/lib/audit';
@@ -62,20 +63,25 @@ export type PurchaseGiftCardInput = {
  */
 async function getOrCreateGiftPoolAccount(tx?: any): Promise<string> {
   const client = tx || prisma;
-  let pool = await client.account.findFirst({
-    where: { accountNumber: 'GIFT_POOL_NGN' },
-  });
-  if (!pool) {
-    const owner = await client.user.findFirst({ where: { role: 'owner' } })
-      || await client.user.findFirst();
-    pool = await client.account.create({
-      data: {
-        userId: owner?.id || '00000000-0000-0000-0000-000000000000',
-        accountNumber: 'GIFT_POOL_NGN',
-        currency: 'NGN',
-        status: 'ACTIVE',
-      },
+  const systemEmail = 'system-ledger@nakconel.internal';
+  let systemUser = await client.user.findUnique({ where: { email: systemEmail } });
+  if (!systemUser) {
+    const [passwordHash, pinHash] = await Promise.all([
+      hashPassword(randomBytes(32).toString('hex')),
+      hashPin(String(randomInt(1000, 10000))),
+    ]);
+    systemUser = await client.user.create({
+      data: { email: systemEmail, fullName: 'Nakconel System Ledger', passwordHash, pinHash, role: 'system', kycStatus: 'NONE' },
     });
+  }
+
+  let pool = await client.account.findFirst({ where: { accountNumber: 'GIFT_POOL_NGN' } });
+  if (!pool) {
+    pool = await client.account.create({
+      data: { userId: systemUser.id, accountNumber: 'GIFT_POOL_NGN', currency: 'NGN', status: 'ACTIVE' },
+    });
+  } else if (pool.userId !== systemUser.id) {
+    pool = await client.account.update({ where: { id: pool.id }, data: { userId: systemUser.id } });
   }
   return pool.id;
 }
