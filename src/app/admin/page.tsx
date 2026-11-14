@@ -35,7 +35,7 @@ export default async function AdminPage() {
     redirect('/admin/login');
   }
 
-  const [users, transfers, kycSubs, businesses, giftCards, riskFlags, supportTickets] = await Promise.all([
+  const [users, transfers, kycSubs, businesses, giftCards, riskFlags, supportTickets, customerAccounts] = await Promise.all([
     prisma.user.findMany({ where:{ role:{ notIn:['owner','admin','support'] } }, orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
     prisma.transfer.findMany({ orderBy:{ createdAt:'desc' }, take:200 }),
     prisma.kycSubmission.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ user:{ select:{ fullName:true, email:true } } } }),
@@ -44,6 +44,18 @@ export default async function AdminPage() {
     (prisma as any).aiRiskAssessment.findMany({ where: { riskLevel: { in: ['HIGH', 'CRITICAL'] } }, orderBy: { createdAt: 'desc' }, take: 50 }),
     (prisma as any).supportTicket.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
   ]);
+
+  const accountIds = customerAccounts.map((account: { id: string }) => account.id);
+  const [creditGroups, debitGroups] = accountIds.length ? await Promise.all([
+    prisma.ledgerEntry.groupBy({ by: ['creditAccountId'], where: { creditAccountId: { in: accountIds }, status: 'POSTED', currency: 'NGN' }, _sum: { amount: true } }),
+    prisma.ledgerEntry.groupBy({ by: ['debitAccountId'], where: { debitAccountId: { in: accountIds }, status: 'POSTED', currency: 'NGN' }, _sum: { amount: true } }),
+  ]) : [[], []];
+  const creditsByAccount = new Map(creditGroups.map((entry: { creditAccountId: string; _sum: { amount: number | null } }) => [entry.creditAccountId, entry._sum.amount ?? 0]));
+  const debitsByAccount = new Map(debitGroups.map((entry: { debitAccountId: string; _sum: { amount: number | null } }) => [entry.debitAccountId, entry._sum.amount ?? 0]));
+  const negativeBalances = customerAccounts.map((account: { id: string; accountNumber: string | null; user: { fullName: string; email: string } }) => ({
+    ...account,
+    balanceKobo: (creditsByAccount.get(account.id) ?? 0) - (debitsByAccount.get(account.id) ?? 0),
+  })).filter((account: { balanceKobo: number }) => account.balanceKobo < 0);
 
   const totalUsers     = users.length;
   const verifiedUsers  = users.filter((u: { kycStatus: string }) => u.kycStatus === 'VERIFIED').length;
@@ -117,6 +129,24 @@ export default async function AdminPage() {
               </div>
             ))}
           </div>
+
+          <Section title="Negative balance review" count={negativeBalances.length}>
+            {negativeBalances.length === 0 ? <div className="empty">No negative balances found in the active customer accounts checked.</div> : (
+              <div className="wrap"><table>
+                <thead><tr>{[th('Customer'),th('Email'),th('Account'),th('Ledger balance'),th('Review status')]}</tr></thead>
+                <tbody>
+                  {negativeBalances.map((account: { id: string; accountNumber: string | null; user: { fullName: string; email: string }; balanceKobo: number }) => (
+                    <tr key={account.id}>
+                      {td(account.user.fullName)}{td(account.user.email)}{td(account.accountNumber ?? '—')}
+                      {td(fmt(account.balanceKobo), true)}
+                      {td(<StatusPill s="REQUIRES_REVIEW" />)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+            <p style={{ padding:'10px 14px', fontSize:11, color:'#82736b' }}>Read-only ledger calculation. This report does not change balances or reverse entries. Review each account's posted journals before any correction.</p>
+          </Section>
 
           {/* Users */}
           <Section title="Users" count={totalUsers}>
