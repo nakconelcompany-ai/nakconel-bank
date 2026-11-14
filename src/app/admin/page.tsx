@@ -43,7 +43,7 @@ export default async function AdminPage() {
     (prisma as any).giftCard.findMany({ orderBy:{ createdAt:'desc' }, take:50 }),
     (prisma as any).aiRiskAssessment.findMany({ where: { riskLevel: { in: ['HIGH', 'CRITICAL'] } }, orderBy: { createdAt: 'desc' }, take: 50 }),
     (prisma as any).supportTicket.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
-    prisma.account.findMany({ where: { accountNumber: { not: 'GIFT_POOL_NGN' }, user: { role: { not: 'system' } } }, select: { id: true, accountNumber: true, status: true, user: { select: { fullName: true, email: true, role: true } } }, take: 1000 }),
+    prisma.account.findMany({ where: { accountNumber: { not: 'GIFT_POOL_NGN' }, user: { role: { notIn: ['owner', 'admin', 'support', 'system'] } } }, select: { id: true, accountNumber: true, status: true, user: { select: { fullName: true, email: true, role: true } } }, take: 1000 }),
   ]);
 
   const accountIds = customerAccounts.map((account: { id: string }) => account.id);
