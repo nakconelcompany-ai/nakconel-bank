@@ -38,8 +38,8 @@ const revokeSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const userId = getAuthenticatedUserId(req);
-  if (!userId || !(await checkAdmin(userId))) {
+  const userId = await getAdminUserId(req);
+  if (!userId) {
     return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
   }
 
