@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { NextRequest } from 'next/server';
-import { createSessionToken, getAuthenticatedUserId, hasSameOriginRequest, verifySessionToken } from './session';
+import { NextRequest, NextResponse } from 'next/server';
+import { createSessionToken, getAuthenticatedUserId, hasSameOriginRequest, verifySessionToken, setAdminSessionCookie } from './session';
 
 const userId = 'c654c221-76fb-4b7f-b0cb-a51bd128c276';
 
@@ -42,6 +42,15 @@ describe('signed sessions', () => {
 
     expect(getAuthenticatedUserId(request)).toBe(userId);
     expect(getAuthenticatedUserId(crossOriginRequest)).toBeNull();
+  });
+
+
+  it('uses a separate administrator cookie instead of the customer session cookie', () => {
+    const response = NextResponse.json({ success: true });
+    setAdminSessionCookie(response, userId);
+    const setCookie = response.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('nakconel_admin_session=');
+    expect(setCookie).not.toContain('nakconel_session=');
   });
 
   it('accepts a valid session token', () => {
