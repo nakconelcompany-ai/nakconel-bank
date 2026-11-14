@@ -1,9 +1,9 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
-export async function getAccountBalanceKobo(accountId: string): Promise<number> {
+export async function getAccountBalanceKobo(accountId: string, client: any = prisma): Promise<number> {
   const [credits, debits] = await Promise.all([
-    prisma.ledgerEntry.aggregate({
+    client.ledgerEntry.aggregate({
       where: { creditAccountId: accountId, status: 'POSTED' },
       _sum: { amount: true },
     }),
@@ -32,7 +32,7 @@ export async function postJournal(input: {
 
   // Create journal + all entries in one atomic write (no $transaction needed here
   // because journal.create with nested entries is already atomic in Prisma)
-  const journal = await prisma.journal.create({
+  const journal = await client.journal.create({
     data: {
       description: input.description,
       entries: {
