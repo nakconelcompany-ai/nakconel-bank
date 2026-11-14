@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { loginUser } from '@/domains/identity/service';
 import { clearSessionCookie, hasSameOriginRequest, setAdminSessionCookie } from '@/lib/session';
-import { prisma } from '@/lib/prisma';
 import { sendLoginAlertEmail } from '@/lib/brevo';
 
 const schema = z.object({
@@ -33,14 +32,6 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-
-    // Legacy admin profiles may have been provisioned with a customer wallet.
-    // Close those customer accounts on admin sign-in; keep the internal gift pool
-    // intact and preserve all immutable journal history.
-    await prisma.account.updateMany({
-      where: { userId: user.id, accountNumber: { not: 'GIFT_POOL_NGN' } },
-      data: { status: 'CLOSED', accountNumber: null },
-    });
 
     const response = NextResponse.json({ success: true, data: { id: user.id, email: user.email, fullName: user.fullName, role: user.role } });
     clearSessionCookie(response);
