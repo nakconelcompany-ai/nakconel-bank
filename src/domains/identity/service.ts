@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { hashPassword, hashPin, verifyPassword, verifyPin } from '@/lib/crypto';
 import { writeAudit } from '@/lib/audit';
-import { postJournal } from '@/domains/ledger/service';
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -202,8 +201,8 @@ export async function loginUser(emailOrPhone: string, password: string) {
     phone:         user.phone ?? undefined,
     role:          user.role ?? 'customer',
     kycStatus:     user.kycStatus,
-    accountId:     user.accounts[0]?.id,
-    accountNumber: user.accounts[0]?.accountNumber ?? undefined,
+    accountId:     ['owner', 'admin', 'support', 'system'].includes(user.role ?? 'customer') ? undefined : user.accounts[0]?.id,
+    accountNumber: ['owner', 'admin', 'support', 'system'].includes(user.role ?? 'customer') ? undefined : user.accounts[0]?.accountNumber ?? undefined,
   };
 }
 
@@ -232,31 +231,16 @@ export async function changePin(userId: string, oldPin: string, newPin: string) 
   await writeAudit({ userId, action: 'PIN_CHANGED', resource: 'user', resourceId: userId });
 }
 
-export async function topUpAccount(input: {
+/**
+ * Direct wallet credits are disabled. A future funding flow must first create
+ * a pending provider transaction and credit the ledger only after a verified,
+ * authenticated and idempotent provider settlement callback.
+ */
+export async function topUpAccount(_input: {
   userId: string;
   accountId: string;
   amountKobo: number;
   reference: string;
-}) {
-  if (input.amountKobo < 10000) throw new Error('Minimum top-up is ₦100');
-  const account = await prisma.account.findFirst({ where: { id: input.accountId, userId: input.userId } });
-  if (!account) throw new Error('Account not found');
-
-  const journal = await postJournal({
-    description: 'Wallet top-up',
-    entries: [{
-      debitAccountId:  'funding:nakconel',
-      creditAccountId: input.accountId,
-      amount:          input.amountKobo,
-      reference:       input.reference,
-    }],
-  });
-
-  await writeAudit({
-    userId: input.userId, action: 'TOPUP_COMPLETED',
-    resource: 'account', resourceId: input.accountId,
-    meta: { amount: input.amountKobo, journalId: journal.id },
-  });
-
-  return journal;
+}): Promise<never> {
+  throw new Error('Wallet funding is unavailable until verified provider settlement is connected.');
 }

@@ -26,7 +26,7 @@ function StatusPill({ s }: { s: string }) {
 export default async function AdminPage() {
   // Auth check
   const cookieStore = await cookies();
-  const token  = cookieStore.get('nakconel_session')?.value;
+  const token  = cookieStore.get('nakconel_admin_session')?.value;
   const userId = token ? verifySessionToken(token) : null;
   if (!userId) redirect('/admin/login');
 
@@ -35,15 +35,28 @@ export default async function AdminPage() {
     redirect('/admin/login');
   }
 
-  const [users, transfers, kycSubs, businesses, giftCards, riskFlags, supportTickets] = await Promise.all([
-    prisma.user.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
+  const [users, transfers, kycSubs, businesses, giftCards, riskFlags, supportTickets, customerAccounts] = await Promise.all([
+    prisma.user.findMany({ where:{ role:{ notIn:['owner','admin','support','system'] } }, orderBy:{ createdAt:'desc' }, take:200, include:{ accounts:{ select:{ id:true, accountNumber:true } } } }),
     prisma.transfer.findMany({ orderBy:{ createdAt:'desc' }, take:200 }),
     prisma.kycSubmission.findMany({ orderBy:{ createdAt:'desc' }, take:200, include:{ user:{ select:{ fullName:true, email:true } } } }),
     prisma.businessProfile.findMany({ orderBy:{ createdAt:'desc' }, take:50, include:{ user:{ select:{ fullName:true, email:true } } } }),
     (prisma as any).giftCard.findMany({ orderBy:{ createdAt:'desc' }, take:50 }),
     (prisma as any).aiRiskAssessment.findMany({ where: { riskLevel: { in: ['HIGH', 'CRITICAL'] } }, orderBy: { createdAt: 'desc' }, take: 50 }),
     (prisma as any).supportTicket.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+    prisma.account.findMany({ where: { accountNumber: { not: 'GIFT_POOL_NGN' }, user: { role: { notIn: ['owner', 'admin', 'support', 'system'] } } }, select: { id: true, accountNumber: true, status: true, user: { select: { fullName: true, email: true, role: true } } }, take: 1000 }),
   ]);
+
+  const accountIds = customerAccounts.map((account: { id: string }) => account.id);
+  const [creditGroups, debitGroups] = accountIds.length ? await Promise.all([
+    prisma.ledgerEntry.groupBy({ by: ['creditAccountId'], where: { creditAccountId: { in: accountIds }, status: 'POSTED', currency: 'NGN' }, _sum: { amount: true } }),
+    prisma.ledgerEntry.groupBy({ by: ['debitAccountId'], where: { debitAccountId: { in: accountIds }, status: 'POSTED', currency: 'NGN' }, _sum: { amount: true } }),
+  ]) : [[], []];
+  const creditsByAccount = new Map(creditGroups.map((entry: { creditAccountId: string; _sum: { amount: number | null } }) => [entry.creditAccountId, entry._sum.amount ?? 0]));
+  const debitsByAccount = new Map(debitGroups.map((entry: { debitAccountId: string; _sum: { amount: number | null } }) => [entry.debitAccountId, entry._sum.amount ?? 0]));
+  const negativeBalances = customerAccounts.map((account: { id: string; accountNumber: string | null; status: string; user: { fullName: string; email: string; role: string } }) => ({
+    ...account,
+    balanceKobo: (creditsByAccount.get(account.id) ?? 0) - (debitsByAccount.get(account.id) ?? 0),
+  })).filter((account: { balanceKobo: number }) => account.balanceKobo < 0);
 
   const totalUsers     = users.length;
   const verifiedUsers  = users.filter((u: { kycStatus: string }) => u.kycStatus === 'VERIFIED').length;
@@ -70,12 +83,8 @@ export default async function AdminPage() {
   );
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="UTF-8"/>
-        <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-        <title>Nakconel Bank — Admin Dashboard</title>
-        <style>{`
+    <>
+      <style>{`
           *{box-sizing:border-box;margin:0;padding:0;}
           body{font-family:'DM Sans',system-ui,sans-serif;background:#f5efe4;color:#271817;font-size:14px;}
           table{width:100%;border-collapse:collapse;}
@@ -89,8 +98,7 @@ export default async function AdminPage() {
           .tab-btn.active{background:#651719;border-color:#651719;color:#fff9eb;}
           @media(max-width:800px){.stats{grid-template-columns:1fr 1fr!important;}.content{padding:14px 10px!important;}}
         `}</style>
-      </head>
-      <body>
+      <div className="admin-page">
         {/* Header */}
         <div style={{ background:'linear-gradient(110deg,#3e0c11,#651719 66%,#4a1015)', color:'#fff8e9', padding:'14px 32px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky' as const, top:0, zIndex:10, borderBottom:'2px solid #c59b44' }}>
           <div>
@@ -99,7 +107,7 @@ export default async function AdminPage() {
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <a href="/" style={{ color:'#f2d995', fontSize:12, fontWeight:700, textDecoration:'none', border:'1px solid rgba(242,217,149,.3)', padding:'6px 14px', borderRadius:8 }}>← App</a>
-            <form action="/api/v1/auth/logout" method="POST" style={{ display:'inline' }}>
+            <form action="/api/v1/admin/logout" method="POST" style={{ display:'inline' }}>
               <button type="submit" style={{ color:'#f2d995', fontSize:12, fontWeight:700, border:'1px solid rgba(242,217,149,.3)', padding:'6px 14px', borderRadius:8, background:'transparent', cursor:'pointer' }}>Sign out</button>
             </form>
           </div>
@@ -122,6 +130,24 @@ export default async function AdminPage() {
               </div>
             ))}
           </div>
+
+          <Section title="Negative balance review" count={negativeBalances.length}>
+            {negativeBalances.length === 0 ? <div className="empty">No negative balances found in the accounts checked.</div> : (
+              <div className="wrap"><table>
+                <thead><tr>{[th('Account holder'),th('Email'),th('Role / status'),th('Account'),th('Ledger balance'),th('Review status')]}</tr></thead>
+                <tbody>
+                  {negativeBalances.map((account: { id: string; accountNumber: string | null; status: string; user: { fullName: string; email: string; role: string }; balanceKobo: number }) => (
+                    <tr key={account.id}>
+                      {td(account.user.fullName)}{td(account.user.email)}{td(`${account.user.role} / ${account.status}`)}{td(account.accountNumber ?? '—')}
+                      {td(fmt(account.balanceKobo), true)}
+                      {td(<StatusPill s="REQUIRES_REVIEW" />)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+            <p style={{ padding:'10px 14px', fontSize:11, color:'#82736b' }}>Read-only ledger calculation. This report does not change balances or reverse entries. Review each account's posted journals before any correction.</p>
+          </Section>
 
           {/* Users */}
           <Section title="Users" count={totalUsers}>
@@ -260,7 +286,7 @@ export default async function AdminPage() {
           </Section>
 
         </div>
-      </body>
-    </html>
+      </div>
+    </>
   );
 }

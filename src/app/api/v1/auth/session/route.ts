@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       include: { accounts: { orderBy: { createdAt: 'asc' }, take: 1 } },
     });
 
-    if (!user) {
+    if (!user || user.role === 'owner' || user.role === 'admin' || user.role === 'support' || user.role === 'system') {
       const response = NextResponse.json({ success: false, error: 'Session is no longer valid.' }, { status: 401 });
       clearSessionCookie(response);
       return response;

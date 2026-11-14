@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthenticatedUserId } from '@/lib/session';
+import { verifySessionToken } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { adminListGiftCards, adminRevokeGiftCard } from '@/domains/gift/service';
 
-async function checkAdmin(userId: string) {
+async function getAdminUserId(req: NextRequest): Promise<string | null> {
+  const token = req.cookies.get('nakconel_admin_session')?.value;
+  const userId = verifySessionToken(token);
+  if (!userId) return null;
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { role: true },
   });
-  return user?.role === 'ADMIN' || user?.role === 'OWNER';
+  return user && (user.role === 'admin' || user.role === 'owner') ? userId : null;
 }
 
 export async function GET(req: NextRequest) {
-  const userId = getAuthenticatedUserId(req);
-  if (!userId || !(await checkAdmin(userId))) {
+  const userId = await getAdminUserId(req);
+  if (!userId) {
     return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
   }
 
@@ -35,8 +38,8 @@ const revokeSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const userId = getAuthenticatedUserId(req);
-  if (!userId || !(await checkAdmin(userId))) {
+  const userId = await getAdminUserId(req);
+  if (!userId) {
     return NextResponse.json({ success: false, error: 'Admin access required.' }, { status: 403 });
   }
 

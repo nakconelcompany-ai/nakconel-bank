@@ -1,34 +1,29 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 type Occasion = 'GENERAL' | 'BIRTHDAY' | 'CONGRATULATIONS' | 'THANK_YOU' | 'WEDDING' | 'HOLIDAY' | 'BUSINESS_BONUS';
-
-const THEMES: Record<Occasion, { label: string; icon: string; bg: string; text: string; sub: string }> = {
-  GENERAL:         { label: 'General',         icon: '🎁', bg: 'linear-gradient(135deg,#651719,#3e0c11)', text: '#fff9eb', sub: 'A gift for you' },
-  BIRTHDAY:        { label: 'Birthday',        icon: '🎂', bg: 'linear-gradient(135deg,#a82b35,#e65100)', text: '#ffffff', sub: 'Happy Birthday!' },
-  CONGRATULATIONS: { label: 'Congrats',        icon: '🏆', bg: 'linear-gradient(135deg,#c59b44,#a07820)', text: '#2a1a00', sub: 'Big Congratulations!' },
-  THANK_YOU:       { label: 'Thank You',       icon: '🌟', bg: 'linear-gradient(135deg,#1b5e20,#2e7d32)', text: '#e8f5e9', sub: 'With Warm Thanks' },
-  WEDDING:         { label: 'Wedding',         icon: '💍', bg: 'linear-gradient(135deg,#4a148c,#7b1fa2)', text: '#f3e5f5', sub: 'Wedding Blessings' },
-  HOLIDAY:         { label: 'Holiday',         icon: '🎄', bg: 'linear-gradient(135deg,#b71c1c,#1b5e20)', text: '#fffde7', sub: 'Season Greetings' },
-  BUSINESS_BONUS:  { label: 'Business Perk',   icon: '💼', bg: 'linear-gradient(135deg,#263238,#37474f)', text: '#eceff1', sub: 'Performance Reward' },
+type Tab = 'send' | 'redeem' | 'history';
+const THEMES: Record<Occasion, { label: string; icon: string; line: string; subtitle: string }> = {
+  GENERAL: { label: 'Just because', icon: '✦', line: '#7b292d', subtitle: 'A little something for you' },
+  BIRTHDAY: { label: 'Birthday', icon: '✧', line: '#a24b42', subtitle: 'Make their day special' },
+  CONGRATULATIONS: { label: 'Congratulations', icon: '★', line: '#9b762e', subtitle: 'Celebrate the big moment' },
+  THANK_YOU: { label: 'Thank you', icon: '♡', line: '#47745a', subtitle: 'A thoughtful thank you' },
+  WEDDING: { label: 'Wedding', icon: '◇', line: '#745a80', subtitle: 'For a beautiful beginning' },
+  HOLIDAY: { label: 'Holiday', icon: '❋', line: '#55735a', subtitle: 'Seasonal good wishes' },
+  BUSINESS_BONUS: { label: 'Business reward', icon: '◆', line: '#52616a', subtitle: 'Recognise great work' },
 };
+const AMOUNTS = [2000, 5000, 10000, 25000, 50000, 100000];
+const money = (n: number) => '₦' + n.toLocaleString('en-NG', { maximumFractionDigits: 0 });
 
-const PRESET_AMOUNTS = [2000, 5000, 10000, 25000, 50000, 100000];
-
-export default function GiftView({
-  accountId,
-  onToast,
-  onBalanceRefresh,
-}: {
+export default function GiftView({ accountId, onToast, onBalanceRefresh }: {
   accountId?: string;
   onToast: (msg: string, type?: 'ok' | 'err') => void;
   onBalanceRefresh?: () => void;
 }) {
-  const [tab, setTab] = useState<'send' | 'redeem' | 'history'>('send');
-
-  // Send state
-  const [amount, setAmount] = useState<number>(5000);
+  const [tab, setTab] = useState<Tab>('send');
+  const [amount, setAmount] = useState(5000);
+  const [customAmount, setCustomAmount] = useState('');
   const [occasion, setOccasion] = useState<Occasion>('GENERAL');
   const [senderName, setSenderName] = useState('');
   const [message, setMessage] = useState('');
@@ -38,605 +33,177 @@ export default function GiftView({
   const [showPinModal, setShowPinModal] = useState(false);
   const [sending, setSending] = useState(false);
   const [issuedCode, setIssuedCode] = useState<string | null>(null);
-
-  // Redeem state
   const [redeemCode, setRedeemCode] = useState('');
   const [previewData, setPreviewData] = useState<any>(null);
   const [checking, setChecking] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
-
-  // History state
   const [giftData, setGiftData] = useState<{ sent: any[]; received: any[]; rewards: any } | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const onToastRef = React.useRef(onToast);
+  onToastRef.current = onToast;
+  const selectedAmount = useMemo(() => customAmount.trim() ? Number(customAmount.replace(/,/g, '')) : amount, [amount, customAmount]);
+  const theme = THEMES[occasion];
 
   useEffect(() => {
-    if (tab === 'history') {
-      loadHistory();
-    }
+    if (tab !== 'history') return;
+    let active = true;
+    setLoadingHistory(true);
+    fetch('/api/v1/gifts').then(r => r.json()).then(json => {
+      if (active && json.success) setGiftData(json.data);
+      else if (active) onToastRef.current(json.error || 'Could not load gift history.', 'err');
+    }).catch(() => { if (active) onToastRef.current('Could not load gift history.', 'err'); })
+      .finally(() => { if (active) setLoadingHistory(false); });
+    return () => { active = false; };
   }, [tab]);
 
-  const loadHistory = async () => {
-    setLoadingHistory(true);
+  async function previewGift() {
+    if (!redeemCode.trim()) return onToast('Enter a gift code first.', 'err');
+    setChecking(true); setPreviewData(null);
     try {
-      const res = await fetch('/api/v1/gifts');
-      const json = await res.json();
-      if (json.success) setGiftData(json.data);
-    } catch {
-      onToast('Could not load gift history.', 'err');
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
+      const response = await fetch('/api/v1/gifts/preview?code=' + encodeURIComponent(redeemCode.trim()));
+      const json = await response.json();
+      if (!response.ok || !json.success) throw new Error(json.error || 'Gift code could not be found.');
+      setPreviewData(json.data);
+    } catch (error) { onToast(error instanceof Error ? error.message : 'Could not check this code.', 'err'); }
+    finally { setChecking(false); }
+  }
 
-  const handlePreview = async () => {
-    if (!redeemCode.trim()) {
-      onToast('Please enter a gift card code.', 'err');
-      return;
-    }
-    setChecking(true);
-    setPreviewData(null);
-    try {
-      const res = await fetch(`/api/v1/gifts/preview?code=${encodeURIComponent(redeemCode.trim())}`);
-      const json = await res.json();
-      if (json.success) {
-        setPreviewData(json.data);
-      } else {
-        onToast(json.error || 'Gift card not found or expired.', 'err');
-      }
-    } catch {
-      onToast('Network error while checking code.', 'err');
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  const handleRedeem = async () => {
-    if (!accountId) {
-      onToast('No active receiving account found.', 'err');
-      return;
-    }
+  async function redeemGift() {
+    if (!accountId) return onToast('No active receiving account found.', 'err');
     setRedeeming(true);
     try {
-      const res = await fetch('/api/v1/gifts/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: redeemCode.trim(), accountId }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        onToast(`Successfully redeemed ₦${(json.data.redeemedAmountKobo / 100).toLocaleString()}! +50 Points earned`, 'ok');
-        setRedeemCode('');
-        setPreviewData(null);
-        if (onBalanceRefresh) onBalanceRefresh();
-      } else {
-        onToast(json.error || 'Redemption failed.', 'err');
-      }
-    } catch {
-      onToast('Redemption failed due to network error.', 'err');
-    } finally {
-      setRedeeming(false);
-    }
-  };
+      const response = await fetch('/api/v1/gifts/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: redeemCode.trim(), accountId }) });
+      const json = await response.json();
+      if (!response.ok || !json.success) throw new Error(json.error || 'Redemption failed.');
+      onToast('Gift redeemed successfully. ' + (json.data.pointsAwarded ?? 0) + ' reward points earned.', 'ok');
+      setRedeemCode(''); setPreviewData(null); onBalanceRefresh?.();
+    } catch (error) { onToast(error instanceof Error ? error.message : 'Redemption failed.', 'err'); }
+    finally { setRedeeming(false); }
+  }
 
-  const handlePurchase = async () => {
-    if (!pin || pin.length !== 4) {
-      onToast('Please enter your 4-digit PIN.', 'err');
-      return;
-    }
+  async function purchaseGift() {
+    if (pin.length !== 4) return onToast('Enter your 4-digit transaction PIN.', 'err');
+    if (!Number.isFinite(selectedAmount) || selectedAmount < 100 || selectedAmount > 500000) return onToast('Choose an amount between ₦100 and ₦500,000.', 'err');
     setSending(true);
     try {
-      const res = await fetch('/api/v1/gifts/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amountNaira: amount,
-          occasion,
-          senderName: senderName.trim() || undefined,
-          message: message.trim() || undefined,
-          recipientEmail: recipientEmail.trim() || undefined,
-          recipientPhone: recipientPhone.trim() || undefined,
-          pin,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setIssuedCode(json.data.rawCode);
-        setShowPinModal(false);
-        setPin('');
-        onToast('Gift card issued successfully!', 'ok');
-        if (onBalanceRefresh) onBalanceRefresh();
-      } else {
-        onToast(json.error || 'Failed to purchase gift card.', 'err');
-      }
-    } catch {
-      onToast('Error issuing gift card.', 'err');
-    } finally {
-      setSending(false);
-    }
-  };
+      const response = await fetch('/api/v1/gifts/purchase', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        amountNaira: selectedAmount, occasion, senderName: senderName.trim() || undefined,
+        message: message.trim() || undefined, recipientEmail: recipientEmail.trim() || undefined,
+        recipientPhone: recipientPhone.trim() || undefined, pin,
+      }) });
+      const json = await response.json();
+      if (!response.ok || !json.success) throw new Error(json.error || 'Gift card purchase failed.');
+      setIssuedCode(json.data.rawCode); setShowPinModal(false); setPin('');
+      onToast('Gift card created.', 'ok'); onBalanceRefresh?.();
+    } catch (error) { onToast(error instanceof Error ? error.message : 'Gift card purchase failed.', 'err'); }
+    finally { setSending(false); }
+  }
 
-  const copyCode = (code: string) => {
-    navigator.clipboard?.writeText(code);
-    onToast('Gift code copied to clipboard!', 'ok');
-  };
+  async function copy(value: string) {
+    try { await navigator.clipboard.writeText(value); onToast('Copied to clipboard.', 'ok'); }
+    catch { onToast('Copy was unavailable in this browser.', 'err'); }
+  }
 
-  const shareCode = (code: string) => {
-    const text = `Hey! Here is a ₦${amount.toLocaleString()} Nakconel Gift Card for you: ${code}. Redeem it instantly on Nakconel Bank!`;
-    if (navigator.share) {
-      navigator.share({ title: 'Nakconel Gift Card', text }).catch(() => {});
-    } else {
-      copyCode(text);
-    }
-  };
-
-  const currentTheme = THEMES[occasion];
+  async function share(code: string) {
+    const text = 'Here is a ' + money(selectedAmount) + ' Nakconel Gift Card for you: ' + code + '. Redeem it on Nakconel Bank.';
+    if (navigator.share) { try { await navigator.share({ title: 'Nakconel Gift', text }); } catch { /* share cancelled */ } }
+    else await copy(text);
+  }
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 40 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', margin: 0 }}>Nakconel Gift</h2>
-          <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 0' }}>Digital gift cards, rewards & instant gifting</p>
-        </div>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-          borderRadius: 20, background: 'linear-gradient(135deg,rgba(197,155,68,.12),rgba(101,23,25,.06))',
-          border: '1px solid rgba(197,155,68,.3)', color: '#a07820', fontSize: 13, fontWeight: 700
-        }}>
-          <span>⭐️</span>
-          <span>{giftData?.rewards?.pointsBalance ?? 0} pts</span>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 12, padding: 4, marginBottom: 24, border: '1px solid var(--border)' }}>
-        {(['send', 'redeem', 'history'] as const).map(t => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            style={{
-              flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
-              background: tab === t ? 'var(--maroon)' : 'transparent',
-              color: tab === t ? '#fff9eb' : 'var(--muted)',
-              fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all .2s'
-            }}>
-            {t === 'send' ? '🎁 Send a Gift' : t === 'redeem' ? '🎟️ Redeem Code' : '📜 History & Rewards'}
-          </button>
-        ))}
-      </div>
-
-      {/* TAB 1: SEND A GIFT */}
-      {tab === 'send' && (
-        <div>
-          {/* Card Preview Banner */}
-          <div style={{
-            background: currentTheme.bg, color: currentTheme.text, borderRadius: 20,
-            padding: 24, marginBottom: 24, boxShadow: '0 10px 25px rgba(0,0,0,.12)',
-            position: 'relative', overflow: 'hidden'
-          }}>
-            <div style={{ position: 'absolute', right: -15, bottom: -20, fontSize: 110, opacity: .18 }}>
-              {currentTheme.icon}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
-              <div>
-                <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', opacity: .8, fontWeight: 700 }}>
-                  Nakconel Digital Gift
-                </span>
-                <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{currentTheme.sub}</div>
-              </div>
-              <div style={{ fontSize: 28 }}>{currentTheme.icon}</div>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <span style={{ fontSize: 12, opacity: .75 }}>Gift Amount</span>
-              <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -0.5 }}>₦{amount.toLocaleString()}</div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: 12, opacity: .85 }}>
-              <div>{senderName ? `From: ${senderName}` : 'From: You'}</div>
-              <div style={{ fontFamily: 'monospace', letterSpacing: 1 }}>NKC-••••-••••-••••</div>
-            </div>
+    <div className="nk-gift">
+      <style>{`
+        .nk-gift{max-width:1060px;margin:0 auto;color:var(--ink)}
+        .nk-gift-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:20px}
+        .nk-gift-kicker{font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:var(--gold);font-weight:800}
+        .nk-gift-title{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-.04em;margin:5px 0}
+        .nk-gift-sub{font-size:13px;color:var(--muted);line-height:1.6}
+        .nk-gift-points{border:1px solid rgba(197,155,68,.38);background:var(--surface);border-radius:13px;padding:10px 14px;text-align:right;white-space:nowrap}
+        .nk-gift-points small{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+        .nk-gift-points strong{display:block;color:var(--maroon);font-size:19px;margin-top:2px}
+        .nk-gift-tabs{display:flex;gap:5px;padding:5px;background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:18px;width:max-content;max-width:100%}
+        .nk-gift-tab{border:0;background:transparent;color:var(--muted);padding:10px 15px;border-radius:10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+        .nk-gift-tab.active{background:var(--maroon);color:#fff8e9}
+        .nk-gift-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(260px,.9fr);gap:16px;align-items:start}
+        .nk-gift-panel{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px;min-width:0}
+        .nk-gift-section-title{font-size:14px;font-weight:800;margin-bottom:5px}
+        .nk-gift-section-sub{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+        .nk-gift-card{position:relative;overflow:hidden;min-height:220px;border-radius:18px;padding:22px;color:#fff8e9;background:linear-gradient(125deg,var(--gift-tone),#301013);display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 12px 26px rgba(62,12,17,.14)}
+        .nk-gift-card:after{content:'';position:absolute;width:190px;height:190px;border:1px solid rgba(255,248,233,.15);border-radius:50%;right:-85px;top:-100px;box-shadow:0 0 0 18px rgba(255,248,233,.035),0 0 0 38px rgba(255,248,233,.025);pointer-events:none}
+        .nk-gift-card-top,.nk-gift-card-bottom{display:flex;justify-content:space-between;align-items:center;gap:12px;position:relative;z-index:1}
+        .nk-gift-card-brand{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;opacity:.85}
+        .nk-gift-card-icon{font-size:25px}
+        .nk-gift-card-sub{font-size:13px;font-weight:700;margin-top:8px}
+        .nk-gift-card-amount{font-size:clamp(27px,4vw,36px);font-weight:900;letter-spacing:-.04em;margin-top:7px}
+        .nk-gift-card-bottom{font-size:10px;opacity:.82}
+        .nk-gift-field{display:block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 7px}
+        .nk-gift-input,.nk-gift-textarea{display:block;width:100%;min-height:45px;border:1px solid var(--border);border-radius:10px;padding:11px 12px;background:var(--bg);color:var(--ink);font:inherit;font-size:13px;outline:none}
+        .nk-gift-textarea{min-height:76px;resize:vertical}
+        .nk-gift-input:focus,.nk-gift-textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,155,68,.12)}
+        .nk-gift-amounts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+        .nk-gift-amount{padding:10px 5px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--ink);font-size:11px;font-weight:800;cursor:pointer}
+        .nk-gift-amount.active{border-color:var(--maroon);background:rgba(101,23,25,.08);color:var(--maroon)}
+        .nk-gift-occasions{display:flex;gap:7px;flex-wrap:wrap}
+        .nk-gift-occasion{border:1px solid var(--border);border-radius:999px;padding:8px 11px;background:var(--bg);color:var(--muted);font-size:10px;font-weight:700;cursor:pointer}
+        .nk-gift-occasion.active{border-color:var(--maroon);background:var(--maroon);color:#fff8e9}
+        .nk-gift-btn{width:100%;border:0;border-radius:11px;min-height:47px;padding:12px 15px;background:var(--maroon);color:#fff8e9;font-size:12px;font-weight:800;cursor:pointer}
+        .nk-gift-btn:disabled{opacity:.5;cursor:not-allowed}
+        .nk-gift-btn.secondary{background:var(--surface);color:var(--maroon);border:1px solid var(--border)}
+        .nk-gift-note{font-size:10px;color:var(--muted);line-height:1.6;margin-top:10px}
+        .nk-gift-redeem{max-width:640px;margin:0 auto}
+        .nk-gift-code{font-family:ui-monospace,monospace;letter-spacing:.08em}
+        .nk-gift-preview{border:1px solid var(--border);background:var(--surface-soft);border-radius:15px;padding:18px;margin-top:14px}
+        .nk-gift-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--border)}
+        .nk-gift-row:last-child{border-bottom:0}
+        .nk-gift-muted{font-size:11px;color:var(--muted)}
+        .nk-gift-badge{font-size:9px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:5px 8px;background:rgba(40,119,78,.1);color:var(--ok)}
+        .nk-gift-modal{position:fixed;inset:0;z-index:999;background:rgba(20,10,10,.66);display:grid;place-items:center;padding:18px}
+        .nk-gift-modal-card{width:100%;max-width:410px;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px;box-shadow:0 22px 70px rgba(0,0,0,.28)}
+        @media(max-width:760px){.nk-gift-grid{grid-template-columns:1fr}.nk-gift-head{align-items:center}.nk-gift-panel{padding:16px}}
+        @media(max-width:430px){.nk-gift-points{padding:8px 10px}.nk-gift-points strong{font-size:15px}.nk-gift-tab{padding:9px 11px}.nk-gift-card{min-height:190px;padding:18px}}
+      `}</style>
+      <header className="nk-gift-head">
+        <div><div className="nk-gift-kicker">Nakconel rewards</div><h1 className="nk-gift-title">Give a little joy.</h1><p className="nk-gift-sub">Send a thoughtful digital gift, redeem a code or keep track of your rewards.</p></div>
+        <div className="nk-gift-points"><small>Your reward points</small><strong>{giftData?.rewards?.pointsBalance ?? 0} pts</strong></div>
+      </header>
+      <nav className="nk-gift-tabs" aria-label="Gift sections">
+        {(['send','redeem','history'] as Tab[]).map(item=><button key={item} className={'nk-gift-tab ' + (tab===item?'active':'')} onClick={()=>setTab(item)}>{item==='send'?'Send a gift':item==='redeem'?'Redeem code':'History & rewards'}</button>)}
+      </nav>
+      {tab==='send' && <div className="nk-gift-grid">
+        <section className="nk-gift-panel">
+          <h2 className="nk-gift-section-title">Create a gift card</h2><p className="nk-gift-section-sub">Choose an amount and make it personal. Your recipient can redeem the code in Nakconel.</p>
+          <div className="nk-gift-card" style={{'--gift-tone':theme.line} as React.CSSProperties}>
+            <div className="nk-gift-card-top"><div><div className="nk-gift-card-brand">Nakconel · Digital gift</div><div className="nk-gift-card-sub">{theme.subtitle}</div></div><div className="nk-gift-card-icon">{theme.icon}</div></div>
+            <div><div className="nk-gift-muted" style={{color:'rgba(255,248,233,.72)'}}>Gift value</div><div className="nk-gift-card-amount">{money(Number.isFinite(selectedAmount)?selectedAmount:0)}</div></div>
+            <div className="nk-gift-card-bottom"><span>From {senderName.trim()||'Someone thoughtful'}</span><span className="nk-gift-code">NKC · •••• · ••••</span></div>
           </div>
-
-          {/* Amount Selection */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--ink)' }}>
-              Select Amount (₦)
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
-              {PRESET_AMOUNTS.map(a => (
-                <button
-                  key={a}
-                  type="button"
-                  onClick={() => setAmount(a)}
-                  style={{
-                    padding: '10px 8px', borderRadius: 10,
-                    border: amount === a ? '2px solid var(--maroon)' : '1px solid var(--border)',
-                    background: amount === a ? 'rgba(101,23,25,.06)' : 'var(--surface)',
-                    color: amount === a ? 'var(--maroon)' : 'var(--ink)',
-                    fontWeight: 700, fontSize: 14, cursor: 'pointer'
-                  }}>
-                  ₦{a.toLocaleString()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Occasion Selection */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--ink)' }}>
-              Choose Occasion & Theme
-            </label>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6 }}>
-              {(Object.keys(THEMES) as Occasion[]).map(occ => (
-                <button
-                  key={occ}
-                  type="button"
-                  onClick={() => setOccasion(occ)}
-                  style={{
-                    flexShrink: 0, padding: '8px 14px', borderRadius: 20,
-                    border: occasion === occ ? '2px solid var(--maroon)' : '1px solid var(--border)',
-                    background: occasion === occ ? 'var(--maroon)' : 'var(--surface)',
-                    color: occasion === occ ? '#fff9eb' : 'var(--ink)',
-                    fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
-                  }}>
-                  <span>{THEMES[occ].icon}</span>
-                  <span>{THEMES[occ].label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Personalization */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 6 }}>
-                Sender Name (Displayed on card)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Alex"
-                value={senderName}
-                onChange={e => setSenderName(e.target.value)}
-                style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 14 }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 6 }}>
-                Personal Message (Optional)
-              </label>
-              <textarea
-                placeholder="Wishing you joy, success, and prosperity!"
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                rows={2}
-                maxLength={200}
-                style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 14, resize: 'none' }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 6 }}>
-                  Recipient Email (Optional)
-                </label>
-                <input
-                  type="email"
-                  placeholder="recipient@example.com"
-                  value={recipientEmail}
-                  onChange={e => setRecipientEmail(e.target.value)}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 14 }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 6 }}>
-                  Recipient Phone (Optional)
-                </label>
-                <input
-                  type="tel"
-                  placeholder="08012345678"
-                  value={recipientPhone}
-                  onChange={e => setRecipientPhone(e.target.value)}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 14 }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Continue button */}
-          <button
-            type="button"
-            onClick={() => setShowPinModal(true)}
-            style={{
-              width: '100%', padding: 14, borderRadius: 12, border: 'none',
-              background: 'var(--maroon)', color: '#fff9eb', fontWeight: 800, fontSize: 15,
-              cursor: 'pointer', boxShadow: '0 4px 14px rgba(101,23,25,.25)'
-            }}>
-            Purchase Gift Card (₦{amount.toLocaleString()})
-          </button>
-        </div>
-      )}
-
-      {/* TAB 2: REDEEM CODE */}
-      {tab === 'redeem' && (
-        <div>
-          <div style={{ background: 'var(--surface)', padding: 24, borderRadius: 16, border: '1px solid var(--border)', marginBottom: 20 }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 800 }}>Enter Gift Card Code</h3>
-            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--muted)' }}>
-              Got a Nakconel gift code? Enter it below to preview and deposit the funds directly into your NGN balance.
-            </p>
-
-            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-              <input
-                type="text"
-                placeholder="NKC-XXXX-XXXX-XXXX"
-                value={redeemCode}
-                onChange={e => setRedeemCode(e.target.value.toUpperCase())}
-                style={{
-                  flex: 1, padding: '13px 16px', borderRadius: 10, border: '1.5px solid var(--border)',
-                  fontFamily: 'monospace', fontSize: 16, letterSpacing: 1.5, background: 'var(--bg)', color: 'var(--ink)'
-                }}
-              />
-              <button
-                type="button"
-                onClick={handlePreview}
-                disabled={checking || !redeemCode.trim()}
-                style={{
-                  padding: '0 20px', borderRadius: 10, border: 'none',
-                  background: 'var(--maroon)', color: '#fff9eb', fontWeight: 700, fontSize: 13, cursor: 'pointer'
-                }}>
-                {checking ? 'Checking…' : 'Inspect'}
-              </button>
-            </div>
-          </div>
-
-          {/* Preview Card */}
-          {previewData && (
-            <div style={{
-              background: THEMES[previewData.occasion as Occasion]?.bg || THEMES.GENERAL.bg,
-              color: THEMES[previewData.occasion as Occasion]?.text || '#fff9eb',
-              borderRadius: 20, padding: 24, marginBottom: 20,
-              boxShadow: '0 10px 25px rgba(0,0,0,.15)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, opacity: .8 }}>
-                  Verified Gift Card
-                </span>
-                <span style={{ fontSize: 24 }}>{THEMES[previewData.occasion as Occasion]?.icon || '🎁'}</span>
-              </div>
-
-              <div style={{ fontSize: 34, fontWeight: 900, marginBottom: 12 }}>
-                ₦{(previewData.amount / 100).toLocaleString()}
-              </div>
-
-              {previewData.senderName && (
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-                  From: {previewData.senderName}
-                </div>
-              )}
-
-              {previewData.message && (
-                <div style={{ fontSize: 13, fontStyle: 'italic', opacity: .9, marginBottom: 18, background: 'rgba(0,0,0,.15)', padding: '10px 14px', borderRadius: 8 }}>
-                  “{previewData.message}”
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, borderTop: '1px solid rgba(255,255,255,.2)' }}>
-                <span style={{ fontSize: 12, opacity: .85 }}>Code: {previewData.codeMasked}</span>
-                <button
-                  type="button"
-                  onClick={handleRedeem}
-                  disabled={redeeming || !previewData.isValid}
-                  style={{
-                    padding: '10px 22px', borderRadius: 10, border: 'none',
-                    background: '#fff9eb', color: 'var(--maroon)', fontWeight: 800, fontSize: 13,
-                    cursor: previewData.isValid ? 'pointer' : 'not-allowed', opacity: previewData.isValid ? 1 : .6
-                  }}>
-                  {redeeming ? 'Redeeming…' : 'Deposit ₦' + (previewData.amount / 100).toLocaleString()}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 3: HISTORY & REWARDS */}
-      {tab === 'history' && (
-        <div>
-          {/* Rewards Status Card */}
-          <div style={{
-            background: 'linear-gradient(135deg,rgba(197,155,68,.15),rgba(101,23,25,.08))',
-            borderRadius: 16, border: '1px solid rgba(197,155,68,.35)', padding: 20, marginBottom: 20,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-          }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                Merchant & Gift Rewards
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--maroon)', marginTop: 4 }}>
-                {giftData?.rewards?.pointsBalance ?? 0} <span style={{ fontSize: 16, fontWeight: 700 }}>Points</span>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                Earn 50 pts on every gift card redeemed. 100 pts = ₦100 cashback.
-              </div>
-            </div>
-            <div style={{ fontSize: 38 }}>⭐️</div>
-          </div>
-
-          <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Gift Cards Sent</h3>
-          {loadingHistory ? (
-            <div style={{ textAlign: 'center', padding: 20, color: 'var(--muted)' }}>Loading records…</div>
-          ) : giftData?.sent && giftData.sent.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-              {giftData.sent.map((c: any) => (
-                <div key={c.id} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  background: 'var(--surface)', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border)'
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>
-                      {THEMES[c.occasion as Occasion]?.icon} ₦{(c.amount / 100).toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>{c.codeMasked}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 6,
-                      background: c.status === 'ACTIVE' ? 'rgba(40,119,78,.12)' : 'rgba(0,0,0,.06)',
-                      color: c.status === 'ACTIVE' ? 'var(--ok)' : 'var(--muted)'
-                    }}>
-                      {c.status}
-                    </span>
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                      {new Date(c.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: 24, background: 'var(--surface)', borderRadius: 12, color: 'var(--muted)', marginBottom: 20 }}>
-              No gift cards sent yet.
-            </div>
-          )}
-
-          <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Gifts Redeemed</h3>
-          {giftData?.received && giftData.received.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {giftData.received.map((r: any) => (
-                <div key={r.id} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  background: 'var(--surface)', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--border)'
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ok)' }}>
-                      +₦{(r.amount / 100).toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      {r.giftCard?.senderName ? `From ${r.giftCard.senderName}` : 'Gift Card deposit'}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    {new Date(r.createdAt).toLocaleDateString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: 24, background: 'var(--surface)', borderRadius: 12, color: 'var(--muted)' }}>
-              No gifts redeemed yet.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* PIN CONFIRMATION MODAL */}
-      {showPinModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999
-        }}>
-          <div style={{
-            background: 'var(--surface)', width: '90%', maxWidth: 380, borderRadius: 20,
-            padding: 24, border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,.3)'
-          }}>
-            <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, textAlign: 'center' }}>Confirm Gift Purchase</h3>
-            <p style={{ margin: '0 0 18px', fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>
-              ₦{amount.toLocaleString()} will be debited from your active NGN balance.
-            </p>
-
-            <div style={{ marginBottom: 18 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 8, color: 'var(--ink)' }}>
-                Enter 4-Digit Transaction PIN
-              </label>
-              <input
-                type="password"
-                maxLength={4}
-                value={pin}
-                onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-                autoFocus
-                placeholder="••••"
-                style={{
-                  width: '100%', textAlign: 'center', padding: '12px 0', fontSize: 24,
-                  letterSpacing: 8, borderRadius: 10, border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--ink)'
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => { setShowPinModal(false); setPin(''); }}
-                style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontWeight: 700, cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handlePurchase}
-                disabled={sending || pin.length !== 4}
-                style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: 'var(--maroon)', color: '#fff9eb', fontWeight: 800, cursor: 'pointer', opacity: pin.length === 4 ? 1 : .5 }}>
-                {sending ? 'Issuing…' : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ISSUED CODE SUCCESS MODAL */}
-      {issuedCode && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999
-        }}>
-          <div style={{
-            background: 'var(--surface)', width: '90%', maxWidth: 420, borderRadius: 20,
-            padding: 28, border: '1px solid var(--border)', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,.3)'
-          }}>
-            <div style={{ fontSize: 50, marginBottom: 10 }}>🎉</div>
-            <h3 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800 }}>Gift Card Ready!</h3>
-            <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--muted)' }}>
-              Share this code with your recipient. Anyone with this code can redeem ₦{amount.toLocaleString()} into their Nakconel account.
-            </p>
-
-            <div style={{
-              background: 'rgba(101,23,25,.07)', border: '1.5px dashed var(--maroon)',
-              borderRadius: 12, padding: '16px 20px', marginBottom: 20
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                Gift Card Code
-              </span>
-              <div style={{ fontSize: 22, fontWeight: 900, fontFamily: 'monospace', color: 'var(--maroon)', letterSpacing: 2, marginTop: 4 }}>
-                {issuedCode}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-              <button
-                type="button"
-                onClick={() => copyCode(issuedCode)}
-                style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid var(--maroon)', background: 'transparent', color: 'var(--maroon)', fontWeight: 700, cursor: 'pointer' }}>
-                📋 Copy Code
-              </button>
-              <button
-                type="button"
-                onClick={() => shareCode(issuedCode)}
-                style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: 'var(--maroon)', color: '#fff9eb', fontWeight: 800, cursor: 'pointer' }}>
-                🎁 Share Gift
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIssuedCode(null)}
-              style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              Done
-            </button>
-          </div>
-        </div>
-      )}
+          <label className="nk-gift-field">Choose an amount</label>
+          <div className="nk-gift-amounts">{AMOUNTS.map(value=><button type="button" key={value} className={'nk-gift-amount '+(!customAmount&&amount===value?'active':'')} onClick={()=>{setAmount(value);setCustomAmount('')}}>{money(value)}</button>)}</div>
+          <label className="nk-gift-field">Or enter a custom amount (₦)</label><input className="nk-gift-input" type="number" min="100" max="500000" value={customAmount} onChange={event=>setCustomAmount(event.target.value)} placeholder="Minimum ₦100 · Maximum ₦500,000"/>
+          <label className="nk-gift-field">Choose an occasion</label>
+          <div className="nk-gift-occasions">{(Object.keys(THEMES) as Occasion[]).map(key=><button type="button" key={key} className={'nk-gift-occasion '+(occasion===key?'active':'')} onClick={()=>setOccasion(key)}>{THEMES[key].icon} {THEMES[key].label}</button>)}</div>
+        </section>
+        <section className="nk-gift-panel">
+          <h2 className="nk-gift-section-title">Make it personal</h2><p className="nk-gift-section-sub">Add a name and a short note for the person receiving your gift.</p>
+          <label className="nk-gift-field">Your name</label><input className="nk-gift-input" value={senderName} onChange={event=>setSenderName(event.target.value)} maxLength={80} placeholder="Name displayed on the gift"/>
+          <label className="nk-gift-field">Personal message</label><textarea className="nk-gift-textarea" value={message} onChange={event=>setMessage(event.target.value)} maxLength={300} placeholder="Write a thoughtful message…"/>
+          <label className="nk-gift-field">Recipient email · optional</label><input className="nk-gift-input" type="email" value={recipientEmail} onChange={event=>setRecipientEmail(event.target.value)} placeholder="name@example.com"/>
+          <label className="nk-gift-field">Recipient phone · optional</label><input className="nk-gift-input" type="tel" value={recipientPhone} onChange={event=>setRecipientPhone(event.target.value)} placeholder="Phone number"/>
+          <div style={{marginTop:20,paddingTop:16,borderTop:'1px solid var(--border)'}}><div className="nk-gift-row" style={{paddingTop:0}}><span className="nk-gift-muted">Gift value</span><strong>{money(selectedAmount||0)}</strong></div><button className="nk-gift-btn" disabled={!Number.isFinite(selectedAmount)||selectedAmount<100||selectedAmount>500000} onClick={()=>setShowPinModal(true)}>Continue to confirmation →</button><p className="nk-gift-note">Review the amount and recipient details before confirming. Never share your transaction PIN with anyone.</p></div>
+        </section>
+      </div>}
+      {tab==='redeem' && <section className="nk-gift-panel nk-gift-redeem">
+        <div className="nk-gift-kicker">A gift waiting for you</div><h2 className="nk-gift-title" style={{fontSize:23}}>Redeem your gift</h2><p className="nk-gift-section-sub">Enter the Nakconel gift code to check its value and status before redeeming it into your NGN account.</p>
+        <label className="nk-gift-field">Gift card code</label><div style={{display:'flex',gap:8}}><input className="nk-gift-input nk-gift-code" style={{flex:1,minWidth:0}} value={redeemCode} onChange={event=>{setRedeemCode(event.target.value.toUpperCase());setPreviewData(null)}} placeholder="NKC-XXXX-XXXX-XXXX"/><button className="nk-gift-btn" style={{width:'auto',paddingInline:18}} onClick={()=>void previewGift()} disabled={checking||!redeemCode.trim()}>{checking?'Checking…':'Check code'}</button></div>
+        {previewData && <div className="nk-gift-preview"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}><div><div className="nk-gift-muted">Gift card value</div><div style={{fontSize:28,fontWeight:900,marginTop:4}}>{money(previewData.amount/100)}</div></div><span className="nk-gift-badge">{previewData.isValid?'VALID GIFT':'NOT REDEEMABLE'}</span></div><div className="nk-gift-row"><span className="nk-gift-muted">From</span><strong style={{fontSize:12}}>{previewData.senderName||'A Nakconel user'}</strong></div><div className="nk-gift-row"><span className="nk-gift-muted">Occasion</span><strong style={{fontSize:12}}>{THEMES[previewData.occasion as Occasion]?.label||'Gift'}</strong></div><div className="nk-gift-row"><span className="nk-gift-muted">Code</span><strong className="nk-gift-code" style={{fontSize:11}}>{previewData.codeMasked}</strong></div>{previewData.message&&<p className="nk-gift-note" style={{margin:'12px 0'}}>“{previewData.message}”</p>}<button className="nk-gift-btn" style={{marginTop:14}} onClick={()=>void redeemGift()} disabled={redeeming||!previewData.isValid||!accountId}>{redeeming?'Redeeming…':'Redeem to my NGN account'}</button></div>}
+      </section>}
+      {tab==='history' && <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:14}}>
+        <section className="nk-gift-panel"><div className="nk-gift-kicker">Rewards programme</div><div style={{fontSize:31,fontWeight:900,color:'var(--maroon)',marginTop:7}}>{giftData?.rewards?.pointsBalance??0}<span style={{fontSize:13,marginLeft:6}}>points</span></div><p className="nk-gift-section-sub" style={{marginTop:5,marginBottom:0}}>Earn 50 points when you redeem a gift card.</p></section>
+        <section className="nk-gift-panel"><h2 className="nk-gift-section-title">Gift cards sent</h2>{loadingHistory?<p className="nk-gift-muted">Loading your records…</p>:giftData?.sent?.length?giftData.sent.map((card:any)=><div className="nk-gift-row" key={card.id}><div><strong style={{fontSize:12}}>{money(card.amount/100)}</strong><div className="nk-gift-muted nk-gift-code">{card.codeMasked}</div></div><span className="nk-gift-badge">{card.status}</span></div>):<p className="nk-gift-muted" style={{padding:'18px 0'}}>Your sent gift cards will appear here.</p>}</section>
+        <section className="nk-gift-panel"><h2 className="nk-gift-section-title">Gifts redeemed</h2>{giftData?.received?.length?giftData.received.map((item:any)=><div className="nk-gift-row" key={item.id}><div><strong style={{fontSize:12,color:'var(--ok)'}}>+{money(item.amount/100)}</strong><div className="nk-gift-muted">{item.giftCard?.senderName?'From '+item.giftCard.senderName:'Gift card redemption'}</div></div><span className="nk-gift-muted">{new Date(item.createdAt).toLocaleDateString('en-NG')}</span></div>):<p className="nk-gift-muted" style={{padding:'18px 0'}}>Your redeemed gifts will appear here.</p>}</section>
+      </div>}
+      {showPinModal && <div className="nk-gift-modal" role="dialog" aria-modal="true" aria-label="Confirm gift card purchase"><div className="nk-gift-modal-card"><div className="nk-gift-kicker">Confirm your gift</div><h2 style={{fontSize:21,fontWeight:900,margin:'6px 0'}}>One final check</h2><p className="nk-gift-section-sub">Gift value: <strong>{money(selectedAmount)}</strong>. Confirm only if the details are correct.</p><label className="nk-gift-field">4-digit transaction PIN</label><input className="nk-gift-input" type="password" inputMode="numeric" maxLength={4} autoFocus value={pin} onChange={event=>setPin(event.target.value.replace(/\D/g,'').slice(0,4))} placeholder="••••"/><div style={{display:'flex',gap:8,marginTop:16}}><button className="nk-gift-btn secondary" onClick={()=>{setShowPinModal(false);setPin('')}}>Cancel</button><button className="nk-gift-btn" disabled={sending||pin.length!==4} onClick={()=>void purchaseGift()}>{sending?'Processing…':'Confirm gift'}</button></div></div></div>}
+      {issuedCode && <div className="nk-gift-modal" role="dialog" aria-modal="true" aria-label="Gift card created"><div className="nk-gift-modal-card"><div className="nk-gift-kicker">Ready to share</div><h2 style={{fontSize:22,fontWeight:900,margin:'7px 0'}}>Your gift is ready.</h2><p className="nk-gift-section-sub">Share this code with the recipient. Anyone with the code may be able to redeem it, so share it privately.</p><div className="nk-gift-preview" style={{textAlign:'center'}}><div className="nk-gift-muted">Your gift code</div><div className="nk-gift-code" style={{fontSize:19,fontWeight:900,marginTop:8}}>{issuedCode}</div></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="nk-gift-btn secondary" onClick={()=>void copy(issuedCode)}>Copy code</button><button className="nk-gift-btn" onClick={()=>void share(issuedCode)}>Share gift</button></div><button className="nk-gift-btn secondary" style={{marginTop:9}} onClick={()=>{setIssuedCode(null);setTab('history')}}>Done</button></div></div>}
     </div>
   );
 }

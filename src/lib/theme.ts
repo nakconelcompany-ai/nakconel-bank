@@ -1,26 +1,37 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 
+function applyTheme(theme: 'light' | 'dark') {
+  try {
+    localStorage.setItem('nkc_theme', theme);
+  } catch { /* Theme still applies for this page session. */ }
+  document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
+}
+
 export function useTheme() {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
+    let saved: 'light' | 'dark' = 'light';
     try {
-      const saved = localStorage.getItem('nkc_theme');
-      setDark(saved === 'dark');
-    } catch { /**/ }
+      saved = localStorage.getItem('nkc_theme') === 'dark' ? 'dark' : 'light';
+    } catch { /* Use light theme when storage is unavailable. */ }
+    document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : '');
+    setDark(saved === 'dark');
   }, []);
 
   const toggle = useCallback(() => {
-    setDark(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('nkc_theme', next ? 'dark' : 'light');
-        document.documentElement.setAttribute('data-theme', next ? 'dark' : '');
-      } catch { /**/ }
-      return next;
+    setDark(current => {
+      const next = current ? 'light' : 'dark';
+      applyTheme(next);
+      return next === 'dark';
     });
   }, []);
 
-  return { dark, toggle };
+  const setTheme = useCallback((theme: 'light' | 'dark') => {
+    applyTheme(theme);
+    setDark(theme === 'dark');
+  }, []);
+
+  return { dark, toggle, setTheme };
 }

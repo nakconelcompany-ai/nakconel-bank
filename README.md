@@ -173,6 +173,95 @@ without the appropriate regulated financial institution, payment providers,
 approvals, operational controls and independent security review. Never use
 demo/mock providers to represent real settlement.
 
+## Phase 4–5: Gift and AI workspace
+
+The Gift and AI screens have an image-free responsive redesign on the
+`redesign-gift-ai-chat` branch.
+
+### Nakconel Gift
+- Send a gift card with an amount, occasion, sender name and optional recipient details.
+- Preview and redeem a gift code into an eligible active NGN account.
+- View sent gifts, redeemed gifts and reward points.
+- The UI redesign preserves the existing authenticated Gift APIs. Gift purchase
+  and redemption remain internal prototype ledger operations, not merchant
+  reward settlement or a production stored-value product.
+
+### Nakconel AI
+- Conversational chat interface with quick prompts for balance, spending,
+  recent transfers, budgeting, business cash flow, gifts, transfers, FX and
+  account security.
+- The authenticated `POST /api/v1/ai/chat` endpoint scopes account queries to
+  the signed-in user and records a minimal audit event.
+- The current chat responder is deterministic and account-aware
+  (`account-aware-rules`); it is not a generative AI model. A vetted AI provider,
+  privacy review, prompt-injection protections, output controls and cost limits
+  are required before enabling generative responses.
+- Existing insights, business cash-flow and FX overview endpoints remain
+  separate views. FX figures are indicative only; business forecasts are
+  simplified estimates, not guarantees.
+- Never submit a transaction PIN, password, OTP, BVN, NIN or full card details
+  to the assistant. The assistant must not initiate or approve money movement.
+
+### Validation status
+The branch changes have not yet been confirmed by a successful CI run. Run
+`npm install`, `npm test`, `npm run lint` and `npm run build` in a
+configured environment before merging. Test the chat route with authenticated
+and unauthenticated sessions, verify account isolation, and test Gift send,
+preview, redeem and history flows against a non-production database.
+
+## Administration, wallet safety and settings
+
+### Separate administrator access
+
+- The admin portal uses a dedicated `nakconel_admin_session` cookie. Customer
+  routes use `nakconel_session`; logging into one clears the other.
+- Administrative and internal system roles are blocked from customer login and
+  customer session restoration. Admin identities are not returned in the
+  customer directory and are not provisioned with an active wallet.
+- `GET /api/v1/admin/setup` is disabled. Provisioning uses a protected
+  `POST /api/v1/admin/setup` and requires a deployment environment variable
+  `ADMIN_PROVISIONING_SECRET` (at least 32 characters) supplied in the
+  `x-admin-provisioning-secret` request header. The request body requires
+  `email`, `fullName`, and a new password of at least 12 characters.
+  Do not place this secret in browser code, source control, or chat. Provision
+  administrators only through an authorised deployment/operator process.
+- The admin page is protected by the dedicated admin cookie and the database
+  role check. Admin logout clears only the admin cookie.
+
+### Wallet funding and negative-balance review
+
+- Customer top-up is intentionally disabled until a verified provider
+  settlement and idempotent ledger-credit workflow is connected. The top-up
+  screen no longer submits repeated requests that return HTTP 503.
+- A payment-provider return URL is not proof of settlement. Confirm payments
+  from verified server-side provider status and the ledger, not URL parameters.
+- The admin dashboard includes a read-only negative-balance review for active
+  customer accounts. It reports the ledger calculation and does not alter,
+  hide, or reverse financial records. Investigate each affected account's
+  posted journal entries before any correction.
+- Gift-card purchases now check available ledger funds within a serializable
+  database transaction. Gift redemption also uses a serializable transaction.
+  The Gift liability pool is assigned to an internal system identity rather
+  than an administrator's customer identity.
+- Existing negative balances are not automatically erased or credited. They
+  require a documented ledger investigation and, if justified, an auditable
+  reversal journal.
+
+### Customer settings
+
+The customer navigation includes Settings. Theme selection (light/dark) is
+available there; the separate theme toggle was removed from the brand header.
+Nakconel AI conversation history is saved locally in the browser and scoped to
+the signed-in user on that browser. It is not a server-synchronised chat archive.
+
+### Known validation limits
+
+The most recent workflow run should be checked before merging. A prior run
+failed during the Node.js setup step, before dependencies, Prisma generation,
+unit tests, lint or the Next.js build could run. Do not treat that run as a
+code-test result. Verify the latest run and resolve any environment/setup issue
+before merging.
+
 ## Architecture
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md).

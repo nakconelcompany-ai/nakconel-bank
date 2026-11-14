@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { loginUser } from '@/domains/identity/service';
-import { setSessionCookie } from '@/lib/session';
+import { hasSameOriginRequest, setAdminSessionCookie } from '@/lib/session';
 import { sendLoginAlertEmail } from '@/lib/brevo';
 
 const schema = z.object({
@@ -10,6 +10,9 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  if (!hasSameOriginRequest(req)) {
+    return NextResponse.json({ success: false, error: 'Request origin is not allowed.' }, { status: 403 });
+  }
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ success: false, error: 'Invalid JSON.' }, { status: 400 }); }
@@ -30,8 +33,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const response = NextResponse.json({ success: true, data: user });
-    setSessionCookie(response, user.id);
+    const response = NextResponse.json({ success: true, data: { id: user.id, email: user.email, fullName: user.fullName, role: user.role } });
+    setAdminSessionCookie(response, user.id);
 
     // Fire login alert (non-blocking)
     const ip  = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined;

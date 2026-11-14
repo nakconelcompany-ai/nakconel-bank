@@ -1,56 +1,70 @@
-/**
- * GET /api/v1/admin/setup
- * One-time setup: creates the admin account if it doesn't exist.
- * Safe to call multiple times — idempotent.
- */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { hashPassword, hashPin } from '@/lib/crypto';
+import { randomInt } from 'node:crypto';
 
-const ADMIN_EMAIL    = 'nakconelcompany@gmail.com';
-const ADMIN_PASSWORD = 'NAKCONEL';
-const ADMIN_NAME     = 'Nakconel Admin';
+const schema = z.object({
+  email: z.string().email(),
+  fullName: z.string().trim().min(2).max(100),
+  password: z.string().min(12).max(200),
+});
 
 export async function GET() {
+  return NextResponse.json({
+    success: false,
+    error: 'Public admin setup is disabled. Use the secured provisioning process.',
+  }, { status: 410 });
+}
+
+// Provisioning is deliberately protected by a deployment-only secret.
+// It creates an administrative identity, never a customer wallet/account.
+export async function POST(request: NextRequest) {
+  const expected = process.env.ADMIN_PROVISIONING_SECRET;
+  const supplied = request.headers.get('x-admin-provisioning-secret');
+  if (!expected || expected.length < 32 || !supplied || supplied !== expected) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  }
+
+  const body: unknown = await request.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ success: false, error: 'Provide a valid email, name and password of at least 12 characters.' }, { status: 400 });
+  }
+
   try {
-    const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
+    const email = parsed.data.email.toLowerCase().trim();
+    const passwordHash = await hashPassword(parsed.data.password);
+    const pinHash = await hashPin(String(randomInt(1000, 10000)));
+    const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
 
-    if (existing) {
-      // Already exists — just ensure role is owner
-      await prisma.user.update({ where: { id: existing.id }, data: { role: 'owner' } });
-      return NextResponse.json({ success: true, message: 'Admin account already exists. Role confirmed as owner.' });
-    }
+    const user = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: { fullName: parsed.data.fullName, passwordHash, pinHash, role: 'owner', kycStatus: 'NONE' },
+          select: { id: true, email: true, fullName: true, role: true },
+        })
+      : await prisma.user.create({
+          data: {
+            email,
+            fullName: parsed.data.fullName,
+            passwordHash,
+            pinHash,
+            role: 'owner',
+            kycStatus: 'NONE',
+          },
+          select: { id: true, email: true, fullName: true, role: true },
+        });
 
-    const [passwordHash, pinHash] = await Promise.all([
-      hashPassword(ADMIN_PASSWORD),
-      hashPin('0000'), // default admin PIN — change via app after first login
-    ]);
-
-    // Generate a unique admin account number
-    const accountNumber = '9000000001';
-
-    const user = await prisma.user.create({
-      data: {
-        email:        ADMIN_EMAIL,
-        fullName:     ADMIN_NAME,
-        phone:        '08000000000',
-        passwordHash,
-        pinHash,
-        role:         'owner',
-        kycStatus:    'VERIFIED',
-        accounts: {
-          create: { currency: 'NGN', status: 'ACTIVE', accountNumber },
-        },
-      },
+    // Keep immutable ledger entries for audit; disable any legacy customer accounts.
+    await prisma.account.updateMany({
+      where: { userId: user.id, accountNumber: { not: 'GIFT_POOL_NGN' } },
+      data: { status: 'CLOSED', accountNumber: null },
     });
 
-    return NextResponse.json({
-      success: true,
-      message: `Admin account created. Email: ${ADMIN_EMAIL} · You can now log in at /admin/login`,
-      id: user.id,
-    });
-  } catch (e: unknown) {
-    console.error('Admin setup error:', e);
-    return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ success: true, data: user });
+  } catch (error) {
+    console.error('Admin provisioning failed:', error);
+    return NextResponse.json({ success: false, error: 'Admin provisioning failed.' }, { status: 500 });
   }
 }

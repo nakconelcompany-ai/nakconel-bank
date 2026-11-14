@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   apiBalance, apiLogout, apiSession, type Session, type TxItem,
-  apiTransfer, apiTransferHistory, apiTopUp, apiKycStatus, apiKycSubmit,
+  apiTransfer, apiTransferHistory, apiKycStatus, apiKycSubmit,
 } from '@/lib/api';
 import Logo from '@/components/Logo';
 import BusinessView from '@/components/BusinessView';
@@ -16,13 +16,13 @@ import { NG_BANKS, getBanksForCurrency, resolveAccountName } from '@/lib/banks';
 import { useTheme } from '@/lib/theme';
 import {
   IconHome, IconSend, IconReceive, IconTopUp, IconWorld, IconArrowRight,
-  IconHistory, IconUser, IconBiz, IconEye, IconEyeOff, IconCard, IconCheck,
+  IconHistory, IconUser, IconBiz, IconEye, IconEyeOff, IconCard, IconCheck, IconGift, IconSparkles,
 } from '@/components/Icons';
 
 type View =
   | 'landing' | 'auth' | 'home'
   | 'send' | 'bank-picker' | 'receive' | 'topup' | 'history'
-  | 'card' | 'kyc' | 'account' | 'gift' | 'ai'
+  | 'card' | 'kyc' | 'account' | 'gift' | 'ai' | 'settings'
   | 'pin' | 'success'
   | 'business' | 'business-demo' | 'international';
 
@@ -60,7 +60,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BankApp() {
-  const { dark, toggle: toggleTheme } = useTheme();
+  const { dark, setTheme } = useTheme();
   const [view, setView]             = useState<View>('landing');
   const [authTab, setAuthTab]       = useState<'login'|'signup'>('login');
   const [session, setSession]       = useState<Session | null>(null);
@@ -98,8 +98,6 @@ export default function BankApp() {
   const [stmtTo,   setStmtTo]   = useState('');
 
   // topup
-  const [topupAmt, setTopupAmt]     = useState('');
-  const [topupLoading, setTopupLoading] = useState(false);
 
   // kyc
   const [kycStatus, setKycStatus]   = useState<string | null>(null);
@@ -154,8 +152,8 @@ export default function BankApp() {
     const u = new URL(window.location.href);
     const p = u.searchParams.get('payment');
     if (!p) return;
-    if (p === 'completed') toast$('Payment received. Wallet credited!');
-    else if (p === 'pending') toast$('Payment pending — wallet will be credited shortly.');
+    if (p === 'completed') toast$('Returned from the payment page. Check transaction history for the verified payment status.');
+    else if (p === 'pending') toast$('Payment is pending provider confirmation. Your balance has not been updated yet.');
     else toast$('Payment was not completed.');
     ['payment','ref','accountId'].forEach(k => u.searchParams.delete(k));
     window.history.replaceState({}, '', u);
@@ -242,6 +240,7 @@ export default function BankApp() {
       ['business', 'Biz', IconBiz],
       ['international', 'Global', IconWorld],
       ['account', 'Me', IconUser],
+      ['settings', 'Settings', IconUser],
     ] as const;
     const showNav = Boolean(opts?.nav && session);
 
@@ -257,10 +256,6 @@ export default function BankApp() {
             <div className="brand-bank">BANK</div>
           </div>
           <div className="brand-tagline">Secure <span>•</span> Simple <span>•</span> Global</div>
-          <button type="button" onClick={toggleTheme} aria-label="Toggle dark mode"
-            style={{ marginLeft: 8, background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)', borderRadius: 18, padding: '5px 9px', cursor: 'pointer', color: 'var(--gold-bright)', fontSize: 15, lineHeight: 1, flexShrink: 0 }}>
-            {dark ? '☀' : '☾'}
-          </button>
         </header>
         <div className={`app-layout${showNav ? ' has-navigation' : ''}`}>
           {showNav && (
@@ -387,7 +382,7 @@ export default function BankApp() {
     { nav: true }
   );
   if (view === 'ai' && session) return shell(
-    <AiView />,
+    <AiView userId={session.id} dark={dark} onSetTheme={setTheme} />,
     { nav: true }
   );
 
@@ -511,12 +506,26 @@ export default function BankApp() {
       <button type="button" onClick={() => setView('international')} className="home-shortcut">
         <span><strong>International transfers</strong><br /><small>Send money abroad at competitive rates</small></span><IconArrowRight size={19} />
       </button>
-      <button type="button" onClick={() => setView('gift')} className="home-shortcut" style={{ background: 'linear-gradient(135deg,rgba(101,23,25,.05),rgba(197,155,68,.08))', borderColor: 'rgba(197,155,68,.3)' }}>
-        <span><strong>Nakconel Gift & Rewards</strong><br /><small>Send digital gift cards, earn cashback & reward points</small></span><IconArrowRight size={19} />
-      </button>
-      <button type="button" onClick={() => setView('ai')} className="home-shortcut" style={{ background: 'linear-gradient(135deg,rgba(79,70,229,.08),rgba(99,102,241,.05))', borderColor: 'rgba(99,102,241,.35)' }}>
-        <span><strong>Nakconel AI</strong><br /><small>Smart insights, cash-flow forecasts & FX advisory</small></span><IconArrowRight size={19} />
-      </button>
+      <section className="home-feature-grid" aria-label="Explore Nakconel features">
+        <button type="button" onClick={() => setView('gift')} className="home-feature-card home-feature-gift">
+          <span className="home-feature-icon"><IconGift size={23} /></span>
+          <span className="home-feature-copy">
+            <strong>Nakconel Gift</strong>
+            <small>Send digital gifts and explore rewards</small>
+            <span className="home-feature-link">Explore gifts <IconArrowRight size={14} /></span>
+          </span>
+          <span className="home-feature-arrow"><IconArrowRight size={17} /></span>
+        </button>
+        <button type="button" onClick={() => setView('ai')} className="home-feature-card home-feature-ai">
+          <span className="home-feature-icon"><IconSparkles size={23} /></span>
+          <span className="home-feature-copy">
+            <strong>Nakconel AI</strong>
+            <small>Ask questions about spending and your money</small>
+            <span className="home-feature-link">Chat with AI <IconArrowRight size={14} /></span>
+          </span>
+          <span className="home-feature-arrow"><IconArrowRight size={17} /></span>
+        </button>
+      </section>
 
       <h2 className="section-heading">Recent activity</h2>
       <section className="glass activity-card">
@@ -770,46 +779,46 @@ export default function BankApp() {
     { nav: true }
   );
 
+  /* ════════ SETTINGS ════════ */
+  if (view === 'settings' && session) return shell(
+    <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <p className="eyebrow">PREFERENCES</p>
+      <h1 style={{ fontSize: 27, fontWeight: 800, margin: '5px 0 8px' }}>Settings</h1>
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 22 }}>Manage your appearance and account preferences.</p>
+      <section className="glass" style={{ padding: 20, marginBottom: 14 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 5 }}>Appearance</h2>
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 16 }}>Choose the theme used across Nakconel Bank.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          <button type="button" className={!dark ? 'btn-gold' : 'btn-ghost'} onClick={() => setTheme('light')} aria-pressed={!dark}>☀ Light theme</button>
+          <button type="button" className={dark ? 'btn-gold' : 'btn-ghost'} onClick={() => setTheme('dark')} aria-pressed={dark}>☾ Dark theme</button>
+        </div>
+      </section>
+      <section className="glass" style={{ padding: 20 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Account preferences</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--muted)', fontSize: 12 }}>Signed in as</span><strong style={{ fontSize: 12 }}>{session.fullName}</strong></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 0' }}><span style={{ color: 'var(--muted)', fontSize: 12 }}>Email</span><strong style={{ fontSize: 12 }}>{session.email}</strong></div>
+      </section>
+      <button type="button" className="btn-ghost" style={{ marginTop: 14 }} onClick={() => setView('account')}>Profile & personal details →</button>
+    </div>,
+    { nav: true }
+  );
+
   /* ════════ TOP UP ════════ */
   if (view === 'topup' && session) return shell(
-    <div>
-      <h2 style={{ marginBottom: 4 }}>Top up wallet</h2>
-      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Add money to your Nakconel wallet</p>
-      <label className="field-label">Amount (₦)</label>
-      <div className="amount-box" style={{ marginBottom: 16 }}>
-        <span className="currency">₦</span>
-        <input value={topupAmt} onChange={e => setTopupAmt(e.target.value)} placeholder="0.00"
-          inputMode="decimal" style={{ border: 'none', background: 'transparent', color: 'var(--ink)', fontSize: 22, fontWeight: 700, padding: '12px 10px', width: '100%', outline: 'none' }} />
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[500, 1000, 2000, 5000, 10000].map(a => (
-          <button key={a} type="button" className="btn-ghost" style={{ flex: 'none', padding: '8px 14px', fontSize: 13 }}
-            onClick={() => setTopupAmt(String(a))}>₦{a.toLocaleString()}</button>
-        ))}
-      </div>
-      <button type="button" className="btn-gold"
-        disabled={topupLoading || !topupAmt || parseFloat(topupAmt) < 100 || !session.accountId}
-        onClick={async () => {
-          if (!session.accountId) return;
-          setTopupLoading(true);
-          try {
-            const r = await apiTopUp(session.accountId, parseFloat(topupAmt));
-            if (r.mode === 'paystack' && r.authorizationUrl) {
-              window.location.href = r.authorizationUrl;
-            } else {
-              toast$(r.message ?? 'Wallet credited!');
-              setTopupAmt('');
-              refreshBalance(session.accountId);
-              setView('home');
-            }
-          } catch (e: unknown) {
-            toast$(e instanceof Error ? e.message : 'Top-up failed');
-          } finally { setTopupLoading(false); }
-        }}>
-        {topupLoading ? 'Processing…' : `Add ${topupAmt ? fmt(parseFloat(topupAmt)) : '₦0'} to wallet`}
-      </button>
-      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, lineHeight: 1.5, textAlign: 'center' }}>
-        Demo mode: top-ups are credited immediately without a payment provider.
+    <div style={{ maxWidth: 560, margin: '0 auto' }}>
+      <h2 style={{ marginBottom: 4 }}>Add money to wallet</h2>
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Wallet funding is temporarily unavailable.</p>
+      <section className="glass" style={{ padding: 20, borderColor: 'var(--border)' }}>
+        <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 7 }}>Funding status</div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7 }}>
+          Nakconel has not yet connected a verified payment-settlement flow for wallet funding. No top-up will be submitted and no balance will be changed from this screen.
+        </p>
+        <button type="button" className="btn-gold" disabled style={{ width: '100%', marginTop: 18, opacity: .55, cursor: 'not-allowed' }}>
+          Top-up unavailable
+        </button>
+      </section>
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 14, lineHeight: 1.6 }}>
+        Your displayed balance comes from posted ledger entries. If it looks incorrect, contact the authorised support team for a ledger review; do not attempt repeated top-ups.
       </p>
     </div>,
     { nav: true }
