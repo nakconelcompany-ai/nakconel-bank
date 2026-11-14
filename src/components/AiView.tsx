@@ -3,6 +3,7 @@
 import React, { KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; time: Date };
+type SavedChat = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
 type Insights = { balanceNgn: number; totalSpentNgn: number; transactionCount: number; insights: string[]; recommendations: string[] };
 type Forecast = { hasBusiness: boolean; businessName?: string; message?: string; metrics?: { totalInvoicedNgn: number; unpaidReceivablesNgn: number; overdueReceivablesNgn: number; totalExpensesNgn: number; projected30DayNetCashFlowNgn: number; projected60DayNetCashFlowNgn: number }; aiForecastNotes?: string[] };
 type Fx = { updatedAt: string; recommendations: Array<{ corridor: string; rate: number; marketSignal: string; spreadGrade: string; advice: string }> };
@@ -17,7 +18,7 @@ const suggestions = [
   { label: 'Gift cards', prompt: 'How do Nakconel Gift cards work?', icon: '◇' },
 ];
 
-export default function AiView() {
+export default function AiView({ userId }: { userId: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: 'welcome',
     role: 'assistant',
@@ -25,6 +26,9 @@ export default function AiView() {
     time: new Date(),
   }]);
   const [draft, setDraft] = useState('');
+  const [activeConversationId, setActiveConversationId] = useState('chat-' + Date.now());
+  const [conversations, setConversations] = useState<SavedChat[]>([]);
+  const [historyReady, setHistoryReady] = useState(false);
   const [sending, setSending] = useState(false);
   const [activePanel, setActivePanel] = useState<'chat' | 'insights' | 'forecast' | 'fx'>('chat');
   const [insights, setInsights] = useState<Insights | null>(null);
@@ -36,6 +40,47 @@ export default function AiView() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, sending]);
+
+  const historyKey = 'nkc_ai_history_' + userId;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(historyKey);
+      const saved = raw ? JSON.parse(raw) as SavedChat[] : [];
+      if (Array.isArray(saved) && saved.length) {
+        const valid = saved.map(chat => ({ ...chat, messages: Array.isArray(chat.messages) ? chat.messages.map(message => ({ ...message, time: new Date(message.time) })) : [] }));
+        setConversations(valid);
+        setActiveConversationId(valid[0].id);
+        setMessages(valid[0].messages);
+      }
+    } catch { /* Ignore damaged local history. */ }
+    finally { setHistoryReady(true); }
+  }, [historyKey]);
+
+  useEffect(() => {
+    if (!historyReady) return;
+    const firstUserMessage = messages.find(message => message.role === 'user');
+    const title = firstUserMessage?.content.slice(0, 48) || 'New conversation';
+    setConversations(current => {
+      const updated: SavedChat = { id: activeConversationId, title, messages, updatedAt: Date.now() };
+      const next = [updated, ...current.filter(chat => chat.id !== activeConversationId)].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 40);
+      try { localStorage.setItem(historyKey, JSON.stringify(next)); } catch { /* Browser storage may be unavailable. */ }
+      return next;
+    });
+  }, [messages, activeConversationId, historyReady, historyKey]);
+
+  function startNewChat() {
+    const id = 'chat-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    setActiveConversationId(id);
+    setMessages([{ id: 'welcome-' + id, role: 'assistant', content: 'Hello. I’m Nakconel AI, your banking companion. What would you like to understand today?', time: new Date() }]);
+    setDraft('');
+    setActivePanel('chat');
+  }
+
+  function openConversation(chat: SavedChat) {
+    setActiveConversationId(chat.id);
+    setMessages(chat.messages.map(message => ({ ...message, time: new Date(message.time) })));
+    setActivePanel('chat');
+  }
 
   useEffect(() => {
     if (activePanel === 'chat') return;
@@ -103,6 +148,13 @@ export default function AiView() {
         .nk-ai-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:stretch}
         .nk-ai-side{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px;height:max-content}
         .nk-ai-side-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px 10px}
+        .nk-ai-history-head{display:flex;align-items:center;justify-content:space-between;margin-top:12px;border-top:1px solid var(--border);padding-top:8px}
+        .nk-ai-new{border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--maroon);font-size:10px;font-weight:800;padding:6px 8px;cursor:pointer}
+        .nk-ai-history-list{display:flex;flex-direction:column;gap:3px;max-height:260px;overflow:auto}
+        .nk-ai-history-item{display:flex;gap:8px;align-items:center;text-align:left;width:100%;padding:9px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-size:10px;cursor:pointer;overflow:hidden}
+        .nk-ai-history-item span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .nk-ai-history-item.active{background:rgba(101,23,25,.09);color:var(--maroon);font-weight:800}
+        .nk-ai-history-empty{font-size:10px;line-height:1.5;color:var(--muted);padding:8px 10px}
         .nk-ai-nav{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:0;border-radius:11px;background:transparent;color:var(--muted);font-size:12px;font-weight:700;text-align:left;cursor:pointer;margin:2px 0}
         .nk-ai-nav.active{background:rgba(101,23,25,.09);color:var(--maroon)}
         .nk-ai-nav-icon{display:grid;place-items:center;width:27px;height:27px;border-radius:8px;background:var(--surface-soft);font-size:15px}
@@ -140,7 +192,7 @@ export default function AiView() {
         .nk-ai-list{padding-left:18px;color:var(--muted);font-size:12px;line-height:1.8}
         .nk-ai-empty{padding:40px 15px;text-align:center;color:var(--muted);font-size:12px}
         .nk-ai-error{color:var(--danger);font-size:12px;padding:14px}
-        @media(max-width:760px){.nk-ai-layout{grid-template-columns:1fr}.nk-ai-side{display:flex;overflow:auto;gap:4px;padding:7px}.nk-ai-side-label,.nk-ai-note{display:none}.nk-ai-nav{width:auto;flex:0 0 auto;padding:9px 11px}.nk-ai-nav-icon{display:none}.nk-ai-chat{height:calc(100dvh - 275px);min-height:440px}.nk-ai-msg{max-width:96%}.nk-ai-head{align-items:center}.nk-ai-status{font-size:0;padding:9px}.nk-ai-status .nk-ai-dot{width:8px;height:8px}}
+        @media(max-width:760px){.nk-ai-layout{grid-template-columns:1fr}.nk-ai-side{display:flex;overflow:auto;gap:4px;padding:7px}.nk-ai-side-label,.nk-ai-note{display:none}.nk-ai-nav{width:auto;flex:0 0 auto;padding:9px 11px}.nk-ai-history-head{width:100%;margin-top:5px}.nk-ai-history-head .nk-ai-side-label{display:block}.nk-ai-history-list{width:100%;max-height:110px;flex-direction:row;overflow:auto}.nk-ai-history-item{width:190px;flex:0 0 190px;background:var(--bg)}.nk-ai-nav-icon{display:none}.nk-ai-chat{height:calc(100dvh - 275px);min-height:440px}.nk-ai-msg{max-width:96%}.nk-ai-head{align-items:center}.nk-ai-status{font-size:0;padding:9px}.nk-ai-status .nk-ai-dot{width:8px;height:8px}}
         @media(max-width:420px){.nk-ai-grid{grid-template-columns:1fr}.nk-ai-messages{padding:14px}.nk-ai-suggestions{padding-inline:12px}.nk-ai-chip{font-size:9px}}
       `}</style>
 
@@ -159,6 +211,10 @@ export default function AiView() {
           {nav.map(item => <button key={item.id} className={`nk-ai-nav ${activePanel === item.id ? 'active' : ''}`} onClick={() => setActivePanel(item.id)}>
             <span className="nk-ai-nav-icon">{item.icon}</span>{item.label}
           </button>)}
+          <div className="nk-ai-history-head"><span className="nk-ai-side-label">Recent chats</span><button type="button" className="nk-ai-new" onClick={startNewChat}>＋ New</button></div>
+          <div className="nk-ai-history-list">
+            {conversations.length === 0 ? <p className="nk-ai-history-empty">Your conversations will appear here.</p> : conversations.map(chat => <button type="button" key={chat.id} className={'nk-ai-history-item ' + (activeConversationId === chat.id && activePanel === 'chat' ? 'active' : '')} onClick={() => openConversation(chat)}><span>◌</span><span>{chat.title}</span></button>)}
+          </div>
           <div className="nk-ai-note">Your chat uses information available to your signed-in Nakconel account. Never share your PIN, OTP, BVN or NIN in a chat.</div>
         </aside>
 
